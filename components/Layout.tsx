@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { 
   LayoutDashboard, ShoppingCart, Settings, LogOut, Menu, FileText, Library, Landmark, X
@@ -33,7 +34,6 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, user
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden w-full">
-      {/* Sidebar Overlay for Mobile */}
       {isSidebarOpen && (
         <div 
           className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[40] lg:hidden"
@@ -41,7 +41,6 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, user
         ></div>
       )}
 
-      {/* Sidebar - Cleanest possible approach */}
       <aside 
         className={`bg-slate-900 text-white flex-shrink-0 transition-all duration-300 ease-in-out z-[50] flex flex-col h-full 
           ${isSidebarOpen ? 'w-64 translate-x-0' : 'w-0 -translate-x-full lg:w-20 lg:translate-x-0'} 
@@ -85,7 +84,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, user
                 onClick={() => handleNavClick(item.id)}
                 className={`w-full flex items-center text-[11px] font-black uppercase tracking-tight transition-all group ${
                   isSidebarOpen 
-                    ? `px-4 py-3 gap-3 rounded-2xl ${active ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}` 
+                    ? `px-4 py-3 gap-3 rounded-2xl ${active ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}` 
                     : `p-3 justify-center ${active ? 'text-blue-500' : 'text-slate-500 hover:text-white'}`
                 }`}
               >
@@ -104,7 +103,6 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, user
         </div>
       </aside>
 
-      {/* Main Content Area */}
       <main className="flex-1 flex flex-col h-full overflow-hidden w-full relative">
         <header className="h-14 bg-white flex items-center justify-between px-6 shrink-0 z-10 border-none shadow-sm">
           <div className="flex items-center gap-4">
@@ -121,7 +119,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, user
             </div>
           </div>
           
-          <div className="flex items-center gap-2 px-4 py-1.5 bg-blue-600 text-white rounded-full shadow-lg shadow-blue-600/20">
+          <div className="flex items-center gap-2 px-4 py-1.5 bg-blue-600 text-white rounded-full shadow-lg">
              <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
              <span className="text-[10px] font-black uppercase tracking-widest">TA 2026</span>
           </div>
