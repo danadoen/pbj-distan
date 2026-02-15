@@ -17,7 +17,6 @@ const cleanLaporanData = (entry: LaporanPBJ) => {
 };
 
 export const dbService = {
-  // --- MASTER BIDANG ---
   getBidang: async (): Promise<string[]> => {
     const { data, error } = await supabase.from('master_bidang').select('nama_bidang').order('nama_bidang', { ascending: true });
     if (error) throw error;
@@ -40,7 +39,6 @@ export const dbService = {
     if (error) throw error;
   },
 
-  // --- LAPORAN PBJ ---
   getLaporan: async (modul: Modul, bidang?: string): Promise<LaporanPBJ[]> => {
     let query = supabase.from('laporan_pbj').select('*').eq('modul', modul);
     if (bidang) query = query.eq('bidang', bidang);
@@ -56,7 +54,8 @@ export const dbService = {
       fisik_realisasi: Number(l.fisik_realisasi),
       sisa_kontrak: Number(l.pagu) - Number(l.realisasi_keuangan),
       persen_keuangan: Number(l.pagu) > 0 ? (Number(l.realisasi_keuangan) / Number(l.pagu)) * 100 : 0,
-      deviasi_fisik: Number(l.fisik_realisasi) - Number(l.fisik_rencana)
+      // LOGIKA DEVIASI: Rencana - Realisasi (User request)
+      deviasi_fisik: Number(l.fisik_rencana) - Number(l.fisik_realisasi)
     }));
   },
 
@@ -70,7 +69,8 @@ export const dbService = {
       pagu: Number(l.pagu),
       realisasi_keuangan: Number(l.realisasi_keuangan),
       fisik_rencana: Number(l.fisik_rencana),
-      fisik_realisasi: Number(l.fisik_realisasi)
+      fisik_realisasi: Number(l.fisik_realisasi),
+      deviasi_fisik: Number(l.fisik_rencana) - Number(l.fisik_realisasi)
     }));
   },
 
@@ -89,18 +89,10 @@ export const dbService = {
 
   deleteLaporan: async (id: number): Promise<void> => {
     if (!id) throw new Error("ID Laporan tidak valid");
-    const { error } = await supabase
-      .from('laporan_pbj')
-      .delete()
-      .eq('id', Number(id));
-    
-    if (error) {
-      console.error("Supabase Delete Laporan Error:", error);
-      throw error;
-    }
+    const { error } = await supabase.from('laporan_pbj').delete().eq('id', Number(id));
+    if (error) throw error;
   },
 
-  // --- REFERENSI RUP ---
   getReferensiRUP: async (): Promise<ReferensiRUP[]> => {
     const { data, error } = await supabase.from('referensi_rup').select('*').order('id', { ascending: false });
     if (error) throw error;
@@ -114,15 +106,8 @@ export const dbService = {
 
   deleteReferensiRUP: async (id: number): Promise<void> => {
     if (!id) throw new Error("ID RUP tidak valid");
-    const { error } = await supabase
-      .from('referensi_rup')
-      .delete()
-      .eq('id', Number(id));
-    
-    if (error) {
-      console.error("Supabase Delete RUP Error:", error);
-      throw error;
-    }
+    const { error } = await supabase.from('referensi_rup').delete().eq('id', Number(id));
+    if (error) throw error;
   },
 
   clearAllReferensiRUP: async (): Promise<void> => {
@@ -135,7 +120,6 @@ export const dbService = {
     if (error) throw error;
   },
 
-  // --- USERS ---
   getUsers: async (): Promise<User[]> => {
     const { data, error } = await supabase.from('users').select('*').order('id', { ascending: true });
     if (error) throw error;
@@ -154,15 +138,7 @@ export const dbService = {
   },
 
   deleteUser: async (id: number): Promise<void> => {
-    if (!id) throw new Error("ID User tidak valid");
-    const { error } = await supabase
-      .from('users')
-      .delete()
-      .eq('id', Number(id));
-    
-    if (error) {
-      console.error("Supabase Delete User Error:", error);
-      throw error;
-    }
+    const { error } = await supabase.from('users').delete().eq('id', Number(id));
+    if (error) throw error;
   }
 };
