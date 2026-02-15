@@ -101,7 +101,6 @@ const Dashboard: React.FC<{ user: User }> = ({ user }) => {
 
   return (
     <div className="space-y-6 pb-20">
-      {/* Header - Total Clean (No blurs, no side elements) */}
       <div className="bg-slate-900 p-8 mb-8 rounded-[2.5rem] shadow-xl relative border-none">
         <div className="relative flex justify-between items-center">
           <div>
@@ -115,7 +114,6 @@ const Dashboard: React.FC<{ user: User }> = ({ user }) => {
         </div>
       </div>
 
-      {/* Metric Cards - Updated 'Keuangan' subValue to show raw currency */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 px-1 md:px-0">
         <StatCard 
           title="Total Pagu" 
