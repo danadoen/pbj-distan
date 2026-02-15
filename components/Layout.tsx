@@ -1,16 +1,7 @@
+
 import React, { useState } from 'react';
 import { 
-  LayoutDashboard, 
-  ShoppingCart, 
-  Settings, 
-  LogOut, 
-  Menu, 
-  FileText,
-  Library,
-  Briefcase,
-  Landmark,
-  ChevronsLeft,
-  ChevronsRight
+  LayoutDashboard, ShoppingCart, Settings, LogOut, Menu, FileText, Library, Landmark, X
 } from 'lucide-react';
 import { Role, User } from '../types';
 
@@ -25,7 +16,7 @@ interface LayoutProps {
 const LOGO_URL = "https://upload.wikimedia.org/wikipedia/commons/5/54/Lambang_Kabupaten_Lombok_Barat.jpeg";
 
 const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, user, onLogout }) => {
-  const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = React.useState(window.innerWidth > 1024);
   const [logoError, setLogoError] = useState(false);
 
   const menuItems = [
@@ -36,157 +27,111 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, user
     { id: 'pengaturan', label: 'Pengaturan', icon: Settings, adminOnly: true },
   ];
 
-  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+  const handleNavClick = (id: string) => {
+    setActiveTab(id);
+    if (window.innerWidth < 1024) setIsSidebarOpen(false);
+  };
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden">
-      {/* Sidebar */}
-      <aside 
-        className={`bg-slate-900 text-white flex-shrink-0 transition-all duration-300 ease-in-out relative z-30 flex flex-col h-full shadow-2xl border-r border-slate-800 
-          ${isSidebarOpen ? 'w-64' : 'w-20'} 
-          ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} 
-          absolute lg:relative`}
-      >
-        {/* Toggle Button (Nuget) */}
-        <button 
-          onClick={toggleSidebar}
-          className="absolute -right-3 top-20 bg-blue-600 text-white p-1 rounded-full shadow-xl shadow-blue-600/40 hover:bg-blue-700 transition-all z-50 border-2 border-slate-900 hidden lg:flex"
-        >
-          {isSidebarOpen ? <ChevronsLeft size={14} /> : <ChevronsRight size={14} />}
-        </button>
+    <div className="flex h-screen bg-slate-50 overflow-hidden w-full">
+      {/* Sidebar Overlay for Mobile */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[40] lg:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        ></div>
+      )}
 
-        {/* Sidebar Header */}
-        <div className={`p-6 border-b border-slate-800 bg-slate-900/50 flex flex-col ${!isSidebarOpen && 'items-center'}`}>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 flex-shrink-0 drop-shadow-md flex items-center justify-center overflow-hidden rounded-lg bg-white">
-              {!logoError ? (
-                <img 
-                  src={LOGO_URL} 
-                  alt="Logo" 
-                  className="w-full h-full object-contain p-1" 
-                  onError={() => setLogoError(true)}
-                />
-              ) : (
-                <Landmark size={24} className="text-blue-400" />
-              )}
+      {/* Sidebar - Cleanest possible approach */}
+      <aside 
+        className={`bg-slate-900 text-white flex-shrink-0 transition-all duration-300 ease-in-out z-[50] flex flex-col h-full 
+          ${isSidebarOpen ? 'w-64 translate-x-0' : 'w-0 -translate-x-full lg:w-20 lg:translate-x-0'} 
+          fixed lg:relative border-none`}
+      >
+        <div className={`p-6 flex items-center justify-between gap-3 ${!isSidebarOpen && 'justify-center lg:px-0'}`}>
+          <div className="flex items-center gap-3 overflow-hidden">
+            <div className="w-10 h-10 flex-shrink-0 bg-white rounded-xl overflow-hidden p-1">
+               {!logoError ? (
+                  <img src={LOGO_URL} alt="Logo" className="w-full h-full object-contain" onError={() => setLogoError(true)} />
+               ) : (
+                  <Landmark className="text-blue-600 w-full h-full" />
+               )}
             </div>
             {isSidebarOpen && (
-              <div className="animate-in fade-in slide-in-from-left-2 duration-300">
-                <h1 className="text-sm font-black tracking-tight leading-none text-white whitespace-nowrap">PBJ DISTAN</h1>
-                <p className="text-blue-400 text-[10px] font-bold uppercase tracking-wider mt-1 whitespace-nowrap">Lombok Barat</p>
+              <div className="overflow-hidden">
+                 <h1 className="text-xs font-black tracking-tighter text-white uppercase truncate">PBJ DISTAN</h1>
+                 <p className="text-blue-400 text-[9px] font-black uppercase">Lombok Barat</p>
               </div>
             )}
           </div>
-          {isSidebarOpen && (
-            <div className="flex items-center gap-2 animate-in fade-in duration-500">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <p className="text-slate-400 text-[9px] font-bold uppercase tracking-widest whitespace-nowrap">Tahun Anggaran 2026</p>
-            </div>
+          
+          {isSidebarOpen && window.innerWidth < 1024 && (
+            <button 
+              onClick={() => setIsSidebarOpen(false)}
+              className="p-2 bg-white/5 hover:bg-white/10 rounded-xl transition-all"
+            >
+              <X size={20} className="text-slate-400" />
+            </button>
           )}
         </div>
 
-        {/* Navigation */}
         <nav className="p-4 space-y-1.5 overflow-y-auto flex-1 scrollbar-hide">
           {menuItems.map((item) => {
             if (item.adminOnly && user?.role !== Role.ADMIN) return null;
-            
             const Icon = item.icon;
             const active = activeTab === item.id;
             return (
               <button
                 key={item.id}
-                onClick={() => setActiveTab(item.id)}
-                title={!isSidebarOpen ? item.label : ''}
-                className={`w-full flex items-center rounded-xl text-xs font-bold transition-all group relative ${
-                  active 
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' 
-                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                } ${isSidebarOpen ? 'px-4 py-3 gap-3' : 'p-3 justify-center'}`}
+                onClick={() => handleNavClick(item.id)}
+                className={`w-full flex items-center text-[11px] font-black uppercase tracking-tight transition-all group ${
+                  isSidebarOpen 
+                    ? `px-4 py-3 gap-3 rounded-2xl ${active ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}` 
+                    : `p-3 justify-center ${active ? 'text-blue-500' : 'text-slate-500 hover:text-white'}`
+                }`}
               >
-                <Icon size={18} className={`${active ? 'scale-110' : 'group-hover:scale-110'} transition-transform`} />
-                {isSidebarOpen && (
-                  <span className="animate-in fade-in slide-in-from-left-2 duration-300 whitespace-nowrap">
-                    {item.label}
-                  </span>
-                )}
-                {!isSidebarOpen && active && (
-                  <div className="absolute left-0 w-1 h-6 bg-white rounded-r-full"></div>
-                )}
+                <Icon size={isSidebarOpen ? 18 : 22} />
+                {isSidebarOpen && <span>{item.label}</span>}
               </button>
             );
           })}
         </nav>
 
-        {/* Sidebar Footer */}
-        <div className={`p-4 border-t border-slate-800 bg-slate-900/30`}>
-          {isSidebarOpen && (
-            <p className="text-[9px] text-slate-500 font-black uppercase tracking-[0.2em] mb-4 px-2">Identitas Login</p>
-          )}
-          
-          <div className={`flex items-center rounded-2xl border border-slate-700/50 bg-slate-800/50 transition-all ${isSidebarOpen ? 'p-3 gap-3 mb-6' : 'p-2 justify-center mb-4'}`}>
-            <div className="w-9 h-9 flex-shrink-0 rounded-xl bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center border border-slate-600 shadow-inner">
-              <span className="text-xs font-black">{user?.username.charAt(0).toUpperCase()}</span>
-            </div>
-            {isSidebarOpen && (
-              <div className="overflow-hidden animate-in fade-in duration-300">
-                <p className="text-xs font-bold truncate text-white uppercase">{user?.username}</p>
-                <p className="text-[9px] text-blue-400 font-black flex items-center gap-1 mt-0.5 whitespace-nowrap uppercase">
-                  <Briefcase size={8} /> {user?.role === Role.ADMIN ? 'ADMIN' : `BIDANG ${user?.bidang}`}
-                </p>
-              </div>
-            )}
-          </div>
-
-          <button
-            onClick={onLogout}
-            title={!isSidebarOpen ? 'Keluar Sistem' : ''}
-            className={`w-full flex items-center rounded-xl text-xs font-bold text-rose-400 hover:bg-rose-500/10 transition-colors group ${isSidebarOpen ? 'px-4 py-3 gap-3' : 'p-3 justify-center'}`}
-          >
-            <LogOut size={18} className="group-hover:-translate-x-1 transition-transform" />
-            {isSidebarOpen && <span>Keluar Sistem</span>}
-          </button>
+        <div className="p-4 border-none">
+           <button onClick={onLogout} className={`w-full flex items-center rounded-2xl text-[11px] font-black uppercase text-rose-400 hover:bg-rose-500/10 transition-all ${isSidebarOpen ? 'px-4 py-3 gap-3' : 'p-3 justify-center'}`}>
+              <LogOut size={18} />
+              {isSidebarOpen && <span>Keluar</span>}
+           </button>
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col h-full overflow-hidden relative">
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 z-10 shadow-sm shrink-0">
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col h-full overflow-hidden w-full relative">
+        <header className="h-14 bg-white flex items-center justify-between px-6 shrink-0 z-10 border-none shadow-sm">
           <div className="flex items-center gap-4">
             <button 
-              className="lg:hidden text-slate-600 p-2 hover:bg-slate-100 rounded-lg transition-colors" 
+              className="text-slate-500 hover:text-blue-600 transition-colors p-1" 
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
             >
-              <Menu size={20} />
+               {isSidebarOpen && window.innerWidth < 1024 ? <X size={22} /> : <Menu size={22} />}
             </button>
-            <div>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                <span className="w-1 h-4 bg-blue-600 rounded-full"></span>
-                {activeTab === 'dashboard' ? 'Ringkasan Realisasi' : 
-                 activeTab === 'referensi' ? 'Database RUP' :
-                 activeTab === 'penyedia' ? 'Modul Penyedia' : 
-                 activeTab === 'swakelola' ? 'Modul Swakelola' : 'Konfigurasi Sistem'}
-              </p>
+            
+            <div className="hidden xs:block">
+               <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Kab. Lombok Barat</h2>
+               <p className="text-xs font-black text-slate-800 uppercase tracking-tight mt-0.5">Dinas Pertanian</p>
             </div>
           </div>
           
-          <div className="flex items-center gap-3">
-            <div className="hidden md:flex flex-col items-end mr-2">
-               <span className="text-[10px] font-black text-slate-900 leading-none uppercase tracking-tighter">Dinas Pertanian</span>
-               <span className="text-[9px] font-bold text-slate-400 leading-tight">Kab. Lombok Barat</span>
-            </div>
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg border border-blue-100 shadow-sm">
-               <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse"></span>
-               <span className="text-[10px] font-black uppercase tracking-tighter">TA 2026</span>
-            </div>
+          <div className="flex items-center gap-2 px-4 py-1.5 bg-blue-600 text-white rounded-full shadow-lg shadow-blue-600/20">
+             <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
+             <span className="text-[10px] font-black uppercase tracking-widest">TA 2026</span>
           </div>
         </header>
 
-        <section className="flex-1 overflow-y-auto p-6 bg-slate-50 relative">
-          {/* Subtle Background Pattern */}
-          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03] pointer-events-none"></div>
-          <div className="relative z-0">
-            {children}
-          </div>
+        <section className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-50 w-full relative scrollbar-hide">
+           <div className="max-w-full mx-auto">
+              {children}
+           </div>
         </section>
       </main>
     </div>
