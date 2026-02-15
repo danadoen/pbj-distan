@@ -1,0 +1,8 @@
+
+{
+  "name": "Realisasi PBJ Dinas Pertanian Lombok Barat",
+  "description": "Platform pemantauan Realisasi Pengadaan Barang dan Jasa (PBJ) Dinas Pertanian Kabupaten Lombok Barat Tahun Anggaran 2026.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
