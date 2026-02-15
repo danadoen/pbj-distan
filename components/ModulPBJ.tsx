@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   Plus, Search, Download, Edit, Trash2, CheckCircle2, X, Zap, Loader2, Briefcase, Award, AlertTriangle
