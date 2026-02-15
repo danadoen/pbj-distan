@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
-  Plus, Search, Download, Edit, Trash2, CheckCircle2, X, Database, Zap, Info, Check, Lock, Loader2, AlertTriangle
+  Plus, Search, Download, Edit, Trash2, CheckCircle2, X, Zap, Loader2, Briefcase, Award, AlertTriangle
 } from 'lucide-react';
 import { LaporanPBJ, Modul, Role, ReferensiRUP, User } from '../types';
 import { dbService } from '../services/dbService';
@@ -105,7 +104,7 @@ const ModulPBJ: React.FC<ModulPBJProps> = ({ type, user }) => {
       setItemToDelete(null);
       await loadData();
     } catch (err) {
-      alert("Gagal menghapus data dari server.");
+      alert("Gagal menghapus data.");
     } finally {
       setIsDeleting(false);
     }
@@ -141,7 +140,6 @@ const ModulPBJ: React.FC<ModulPBJProps> = ({ type, user }) => {
   });
 
   const exportToExcel = () => {
-    // Logic for excel remains same as before but uses filtered data
     const workbook = XLSX.utils.book_new();
     const worksheet = XLSX.utils.json_to_sheet(filteredData);
     XLSX.utils.book_append_sheet(workbook, worksheet, "Realisasi");
@@ -154,10 +152,10 @@ const ModulPBJ: React.FC<ModulPBJProps> = ({ type, user }) => {
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
           <div className="relative flex-1 sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-            <input type="text" placeholder="Cari paket..." className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 shadow-sm" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            <input type="text" placeholder="Cari paket..." className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 shadow-sm outline-none" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
           </div>
           {user.role === Role.ADMIN && (
-            <select className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500 shadow-sm" value={filterBidang} onChange={(e) => setFilterBidang(e.target.value)}>
+            <select className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500 shadow-sm outline-none" value={filterBidang} onChange={(e) => setFilterBidang(e.target.value)}>
               <option value="">Semua Bidang</option>
               {bidangList.map(b => <option key={b} value={b}>{b}</option>)}
             </select>
@@ -171,7 +169,7 @@ const ModulPBJ: React.FC<ModulPBJProps> = ({ type, user }) => {
 
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto scrollbar-hide">
-          <table className="w-full text-left border-collapse min-w-[1000px]">
+          <table className="w-full text-left border-collapse min-w-[1100px]">
             <thead className="bg-slate-50 text-[10px] uppercase font-black tracking-tighter text-slate-400">
               <tr>
                 <th rowSpan={2} className="px-4 py-4 border-b border-slate-100 text-center w-12">No</th>
@@ -197,10 +195,8 @@ const ModulPBJ: React.FC<ModulPBJProps> = ({ type, user }) => {
               {loading ? (
                 <tr><td colSpan={13} className="px-4 py-20 text-center text-slate-300 italic">Sinkronisasi data...</td></tr>
               ) : filteredData.length === 0 ? (
-                <tr><td colSpan={13} className="px-4 py-20 text-center text-slate-300 italic italic">Tidak ditemukan data realisasi.</td></tr>
+                <tr><td colSpan={13} className="px-4 py-20 text-center text-slate-300 italic">Tidak ditemukan data realisasi.</td></tr>
               ) : filteredData.map((item, idx) => {
-                // LOGIKA WARNA DEVIASI (Rencana - Realisasi)
-                // Jika positif (+), artinya rencana > realisasi = TERLAMBAT (MERAH)
                 const isLate = (Number(item.fisik_rencana) - Number(item.fisik_realisasi)) > 0;
                 const devVal = (Number(item.fisik_rencana) - Number(item.fisik_realisasi)).toFixed(1);
 
@@ -242,68 +238,103 @@ const ModulPBJ: React.FC<ModulPBJProps> = ({ type, user }) => {
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
-          <div className="bg-white rounded-[2.5rem] w-full max-w-5xl max-h-[95vh] overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-300">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-5xl my-auto shadow-2xl animate-in zoom-in-95 duration-300">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
               <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">{editingItem ? 'Edit Data' : 'Tambah Realisasi'}</h2>
               <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-all text-slate-400"><X size={20} /></button>
             </div>
-            <form onSubmit={handleSave} className="flex-1 overflow-y-auto p-8 bg-slate-50/30">
+            <form onSubmit={handleSave} className="p-8 bg-slate-50/30">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                  <div className="space-y-6">
                     <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Integrasi RUP</label>
+                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Identitas RUP & Pagu</label>
                        <div className="flex gap-2">
                           <input type="text" placeholder="Kode RUP" className={`flex-1 p-3 border rounded-2xl text-sm font-mono focus:ring-4 focus:ring-blue-500/10 outline-none ${lookupError ? 'border-rose-300 bg-rose-50' : lookupSuccess ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200'}`} value={form.kode_rup} onChange={(e) => setForm({ ...form, kode_rup: e.target.value })} />
                           <button type="button" onClick={manualRUPLookup} className="p-3 bg-slate-900 text-white rounded-2xl hover:bg-blue-600 transition-all shadow-lg active:scale-95"><Zap size={18} /></button>
                        </div>
                        <textarea rows={2} placeholder="Nama Paket Pekerjaan" className="w-full p-3 border border-slate-200 rounded-2xl text-sm font-bold bg-white focus:ring-4 focus:ring-blue-500/10 outline-none" value={form.nama_paket} onChange={(e) => setForm({ ...form, nama_paket: e.target.value })} />
                        <div className="grid grid-cols-2 gap-4">
-                          <input type="number" placeholder="Nilai Pagu" className="w-full p-3 border border-slate-200 rounded-2xl text-sm font-mono bg-slate-50" value={form.pagu} readOnly />
-                          <input type="text" placeholder="Bidang" className="w-full p-3 border border-slate-200 rounded-2xl text-sm font-black bg-blue-50 text-blue-700" value={form.bidang} readOnly />
+                          <div>
+                            <label className="text-[9px] font-bold text-slate-400 uppercase ml-2 mb-1 block">Nilai Pagu (Integrasi)</label>
+                            <input type="number" placeholder="Nilai Pagu" className="w-full p-3 border border-slate-200 rounded-2xl text-sm font-mono bg-slate-50 outline-none" value={form.pagu} readOnly />
+                          </div>
+                          <div>
+                            <label className="text-[9px] font-bold text-slate-400 uppercase ml-2 mb-1 block">Nilai HPS</label>
+                            <input type="number" placeholder="Input HPS" className="w-full p-3 border border-blue-100 rounded-2xl text-sm font-bold text-blue-700 bg-blue-50/30 outline-none" value={form.hps} onChange={(e) => setForm({ ...form, hps: Number(e.target.value) })} />
+                          </div>
                        </div>
                     </div>
                     <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Data Kontrak</label>
-                       <input type="text" placeholder="Penyedia / Pelaksana" className="w-full p-3 border border-slate-200 rounded-2xl text-sm" value={form.penyedia} onChange={(e) => setForm({ ...form, penyedia: e.target.value })} />
+                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Kontrak & Penyedia</label>
+                       <input type="text" placeholder="Penyedia / Pelaksana (Wajib Isi)" className="w-full p-3 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-500/10" value={form.penyedia} onChange={(e) => setForm({ ...form, penyedia: e.target.value })} />
                        <div className="grid grid-cols-2 gap-4">
-                          <input type="number" placeholder="Nilai Kontrak" className="w-full p-3 border border-slate-200 rounded-2xl text-sm font-bold text-blue-700" value={form.kontrak_nilai} onChange={(e) => setForm({ ...form, kontrak_nilai: Number(e.target.value) })} />
-                          <input type="date" className="w-full p-3 border border-slate-200 rounded-2xl text-sm" value={form.kontrak_tanggal} onChange={(e) => setForm({ ...form, kontrak_tanggal: e.target.value })} />
+                          <div>
+                            <label className="text-[9px] font-bold text-slate-400 uppercase ml-2 mb-1 block">Nilai Kontrak</label>
+                            <input type="number" placeholder="Nilai Kontrak" className="w-full p-3 border border-slate-200 rounded-2xl text-sm font-black text-blue-700 outline-none focus:ring-4 focus:ring-blue-500/10" value={form.kontrak_nilai} onChange={(e) => setForm({ ...form, kontrak_nilai: Number(e.target.value) })} />
+                          </div>
+                          <div>
+                            <label className="text-[9px] font-bold text-slate-400 uppercase ml-2 mb-1 block">Tanggal Kontrak</label>
+                            <input type="date" className="w-full p-3 border border-slate-200 rounded-2xl text-sm outline-none" value={form.kontrak_tanggal} onChange={(e) => setForm({ ...form, kontrak_tanggal: e.target.value })} />
+                          </div>
                        </div>
                     </div>
                  </div>
                  <div className="space-y-6">
                     <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Realisasi & Progres</label>
-                       <input type="number" placeholder="Realisasi Keuangan (Rp)" className="w-full p-3 border border-slate-200 rounded-2xl text-sm font-black text-emerald-600" value={form.realisasi_keuangan} onChange={(e) => setForm({ ...form, realisasi_keuangan: Number(e.target.value) })} />
+                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Realisasi Keuangan & Fisik</label>
+                       <div>
+                          <label className="text-[9px] font-bold text-slate-400 uppercase ml-2 mb-1 block">Realisasi Keuangan (Akumulatif)</label>
+                          <input type="number" placeholder="Input Realisasi Rp" className="w-full p-3 border border-emerald-200 rounded-2xl text-sm font-black text-emerald-600 bg-emerald-50/20 outline-none focus:ring-4 focus:ring-emerald-500/10" value={form.realisasi_keuangan} onChange={(e) => setForm({ ...form, realisasi_keuangan: Number(e.target.value) })} />
+                       </div>
                        <div className="grid grid-cols-2 gap-4">
                           <div>
                              <label className="text-[9px] font-bold text-slate-400 uppercase ml-2 mb-1 block">Fisik Rencana %</label>
-                             <input type="number" step="0.1" className="w-full p-3 border border-slate-200 rounded-2xl text-sm font-bold" value={form.fisik_rencana} onChange={(e) => setForm({ ...form, fisik_rencana: Number(e.target.value) })} />
+                             <input type="number" step="0.1" className="w-full p-3 border border-slate-200 rounded-2xl text-sm font-bold outline-none" value={form.fisik_rencana} onChange={(e) => setForm({ ...form, fisik_rencana: Number(e.target.value) })} />
                           </div>
                           <div>
                              <label className="text-[9px] font-bold text-slate-400 uppercase ml-2 mb-1 block">Fisik Realisasi %</label>
-                             <input type="number" step="0.1" className="w-full p-3 border border-slate-200 rounded-2xl text-sm font-black text-blue-600" value={form.fisik_realisasi} onChange={(e) => setForm({ ...form, fisik_realisasi: Number(e.target.value) })} />
+                             <input type="number" step="0.1" className="w-full p-3 border border-slate-200 rounded-2xl text-sm font-black text-blue-600 outline-none" value={form.fisik_realisasi} onChange={(e) => setForm({ ...form, fisik_realisasi: Number(e.target.value) })} />
                           </div>
                        </div>
                        <div className="p-3 bg-slate-900 rounded-2xl text-white flex justify-between items-center">
-                          <span className="text-[10px] font-black uppercase opacity-60">Live Deviasi</span>
+                          <span className="text-[10px] font-black uppercase opacity-60">Status Deviasi</span>
                           <span className={`text-sm font-black ${(form.fisik_rencana - form.fisik_realisasi) > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
                              {((form.fisik_rencana - form.fisik_realisasi)).toFixed(1)}%
                           </span>
                        </div>
                     </div>
                     <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Pembayaran (SP2D)</label>
-                       <input type="text" placeholder="Nomor SP2D" className="w-full p-3 border border-slate-200 rounded-2xl text-sm" value={form.nomor_sp2d} onChange={(e) => setForm({ ...form, nomor_sp2d: e.target.value })} />
-                       <input type="date" className="w-full p-3 border border-slate-200 rounded-2xl text-sm" value={form.tgl_sp2d} onChange={(e) => setForm({ ...form, tgl_sp2d: e.target.value })} />
+                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Pembayaran SP2D</label>
+                       <div className="grid grid-cols-2 gap-4">
+                         <input type="text" placeholder="Nomor SP2D" className="w-full p-3 border border-slate-200 rounded-2xl text-sm outline-none" value={form.nomor_sp2d} onChange={(e) => setForm({ ...form, nomor_sp2d: e.target.value })} />
+                         <input type="date" className="w-full p-3 border border-slate-200 rounded-2xl text-sm outline-none" value={form.tgl_sp2d} onChange={(e) => setForm({ ...form, tgl_sp2d: e.target.value })} />
+                       </div>
                     </div>
-                    <button type="submit" className="w-full py-4 bg-blue-600 text-white rounded-3xl font-black text-sm hover:bg-blue-700 transition-all shadow-xl shadow-blue-500/20 active:scale-95 flex items-center justify-center gap-2">
+                    <button type="submit" className="w-full py-4 bg-blue-600 text-white rounded-3xl font-black text-sm hover:bg-blue-700 transition-all shadow-xl active:scale-95 flex items-center justify-center gap-2">
                        <CheckCircle2 size={18} /> Simpan Laporan
                     </button>
                  </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {isDeleteConfirmOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl w-full max-w-sm p-8 text-center shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="w-16 h-16 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+               <AlertTriangle size={32} />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 mb-2">Hapus Data</h3>
+            <p className="text-sm text-slate-500 mb-8">Apakah Anda yakin ingin menghapus data realisasi ini? Tindakan ini tidak dapat dibatalkan.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setIsDeleteConfirmOpen(false)} className="flex-1 py-3 text-sm font-bold text-slate-500 bg-slate-100 rounded-2xl">Batal</button>
+              <button onClick={confirmDelete} disabled={isDeleting} className="flex-1 py-3 text-sm font-bold text-white bg-red-600 rounded-2xl shadow-lg">
+                {isDeleting ? <Loader2 size={16} className="animate-spin" /> : "Ya, Hapus"}
+              </button>
+            </div>
           </div>
         </div>
       )}
