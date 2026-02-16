@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { 
-  LayoutDashboard, ShoppingCart, Settings, LogOut, Menu, FileText, Library, Landmark, X
+  LayoutDashboard, ShoppingCart, Settings, LogOut, Menu, FileText, Library, Landmark, X, User as UserIcon, ShieldCheck
 } from 'lucide-react';
 import { Role, User } from '../types';
 
@@ -44,11 +44,11 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, user
       <aside 
         className={`bg-slate-900 text-white flex-shrink-0 transition-all duration-300 ease-in-out z-[50] flex flex-col h-full 
           ${isSidebarOpen ? 'w-64 translate-x-0' : 'w-0 -translate-x-full lg:w-20 lg:translate-x-0'} 
-          fixed lg:relative border-none`}
+          fixed lg:relative border-none shadow-2xl`}
       >
         <div className={`p-6 flex items-center justify-between gap-3 ${!isSidebarOpen && 'justify-center lg:px-0'}`}>
           <div className="flex items-center gap-3 overflow-hidden">
-            <div className="w-10 h-10 flex-shrink-0 bg-white rounded-xl overflow-hidden p-1">
+            <div className="w-10 h-10 flex-shrink-0 bg-white rounded-xl overflow-hidden p-1 shadow-lg">
                {!logoError ? (
                   <img src={LOGO_URL} alt="Logo" className="w-full h-full object-contain" onError={() => setLogoError(true)} />
                ) : (
@@ -57,8 +57,8 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, user
             </div>
             {isSidebarOpen && (
               <div className="overflow-hidden">
-                 <h1 className="text-xs font-black tracking-tighter text-white uppercase truncate">PBJ DISTAN</h1>
-                 <p className="text-blue-400 text-[9px] font-black uppercase">Lombok Barat</p>
+                 <h1 className="text-[11px] font-black tracking-tighter text-white uppercase truncate">PBJ DISTAN</h1>
+                 <p className="text-blue-400 text-[9px] font-black uppercase tracking-widest">Lombok Barat</p>
               </div>
             )}
           </div>
@@ -84,7 +84,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, user
                 onClick={() => handleNavClick(item.id)}
                 className={`w-full flex items-center text-[11px] font-black uppercase tracking-tight transition-all group ${
                   isSidebarOpen 
-                    ? `px-4 py-3 gap-3 rounded-2xl ${active ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}` 
+                    ? `px-4 py-3 gap-3 rounded-2xl ${active ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}` 
                     : `p-3 justify-center ${active ? 'text-blue-500' : 'text-slate-500 hover:text-white'}`
                 }`}
               >
@@ -95,7 +95,21 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, user
           })}
         </nav>
 
-        <div className="p-4 border-none">
+        <div className="p-4 border-t border-white/5 space-y-2">
+           {isSidebarOpen && user && (
+              <div className="px-4 py-3 bg-white/5 rounded-2xl mb-2 flex items-center gap-3 border border-white/5">
+                 <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-inner">
+                    <UserIcon size={16} />
+                 </div>
+                 <div className="overflow-hidden text-left">
+                    <p className="text-[10px] font-black text-white uppercase truncate tracking-tight">{user.username}</p>
+                    <div className="flex items-center gap-1">
+                       <ShieldCheck size={10} className="text-emerald-400" />
+                       <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{user.role}</p>
+                    </div>
+                 </div>
+              </div>
+           )}
            <button onClick={onLogout} className={`w-full flex items-center rounded-2xl text-[11px] font-black uppercase text-rose-400 hover:bg-rose-500/10 transition-all ${isSidebarOpen ? 'px-4 py-3 gap-3' : 'p-3 justify-center'}`}>
               <LogOut size={18} />
               {isSidebarOpen && <span>Keluar</span>}
@@ -104,7 +118,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, user
       </aside>
 
       <main className="flex-1 flex flex-col h-full overflow-hidden w-full relative">
-        <header className="h-14 bg-white flex items-center justify-between px-6 shrink-0 z-10 border-none shadow-sm">
+        <header className="h-14 bg-white flex items-center justify-between px-6 shrink-0 z-10 border-b border-slate-100 shadow-sm">
           <div className="flex items-center gap-4">
             <button 
               className="text-slate-500 hover:text-blue-600 transition-colors p-1" 
@@ -114,18 +128,18 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, user
             </button>
             
             <div className="hidden xs:block">
-               <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Kab. Lombok Barat</h2>
+               <h2 className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">Pemerintah Kab. Lombok Barat</h2>
                <p className="text-xs font-black text-slate-800 uppercase tracking-tight mt-0.5">Dinas Pertanian</p>
             </div>
           </div>
           
-          <div className="flex items-center gap-2 px-4 py-1.5 bg-blue-600 text-white rounded-full shadow-lg">
-             <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
+          <div className="flex items-center gap-2 px-4 py-1.5 bg-blue-600 text-white rounded-full shadow-lg shadow-blue-600/20">
+             <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
              <span className="text-[10px] font-black uppercase tracking-widest">TA 2026</span>
           </div>
         </header>
 
-        <section className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-50 w-full relative scrollbar-hide">
+        <section className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-50 w-full relative">
            <div className="max-w-full mx-auto">
               {children}
            </div>
