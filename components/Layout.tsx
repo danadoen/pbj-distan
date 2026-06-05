@@ -135,7 +135,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, user
           
           <div className="flex items-center gap-2 px-4 py-1.5 bg-blue-600 text-white rounded-full shadow-lg shadow-blue-600/20">
              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
-             <span className="text-[10px] font-black uppercase tracking-widest">TA 2026</span>
+             <span className="text-[10px] font-black uppercase tracking-widest">TA 2026-2030</span>
           </div>
         </header>
 
