@@ -1,0 +1,9 @@
+name = "realisasi-pbj-dinas-pertanian-lombok-barat"
+main = "src/index.js"
+compatibility_date = "2024-09-23"
+
+# Cloudflare D1 Database Binding
+[[d1_databases]]
+binding = "DB"
+database_name = "realisasipbj"
+database_id = "1a9d87c0-3fef-4066-aecd-d50ed8ee8dca"
