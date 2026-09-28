@@ -4,23 +4,68 @@ import Dashboard from './components/Dashboard';
 import ModulPBJ from './components/ModulPBJ';
 import Pengaturan from './components/Pengaturan';
 import ReferensiRUPManager from './components/ReferensiRUPManager';
+import { PWAInstallButton } from './components/PWAInstallButton';
+import { OfflineIndicator } from './components/OfflineIndicator';
 import { Modul, Role, User } from './types';
-import { dbService } from './services/dbService';
 import { api } from './services/api';
 import { LogIn, ShieldAlert, Landmark, Loader2 } from 'lucide-react';
 
-// Menggunakan URL resmi logo Lombok Barat yang stabil
 const LOGO_URL = "https://upload.wikimedia.org/wikipedia/commons/5/54/Lambang_Kabupaten_Lombok_Barat.jpeg";
+const AUTH_STORAGE_KEY = 'pbj_distan_auth_user';
+const TAB_STORAGE_KEY = 'pbj_distan_active_tab';
 
 const App: React.FC = () => {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
-  const [activeTab, setActiveTab] = useState('dashboard');
+  // Pulihkan session pengguna dari localStorage jika ada sehingga tidak perlu login ulang saat refresh
+  const [user, setUser] = useState<User | null>(() => {
+    try {
+      const saved = localStorage.getItem(AUTH_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.username) {
+          const role = String(parsed.role).toLowerCase() === 'admin' ? Role.ADMIN : Role.STAFF;
+          return { ...parsed, role };
+        }
+      }
+    } catch (e) {
+      console.warn('Gagal membaca sesi login dari localStorage', e);
+    }
+    return null;
+  });
+
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem(AUTH_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return !!(parsed && parsed.username);
+      }
+    } catch {
+      // ignore
+    }
+    return false;
+  });
+
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    try {
+      return localStorage.getItem(TAB_STORAGE_KEY) || 'dashboard';
+    } catch {
+      return 'dashboard';
+    }
+  });
+
   const [logoError, setLogoError] = useState(false);
-  
   const [loginData, setLoginData] = useState({ username: '', password: '' });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    try {
+      localStorage.setItem(TAB_STORAGE_KEY, tab);
+    } catch {
+      // ignore
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,6 +81,12 @@ const App: React.FC = () => {
       if (response && response.user) {
         setUser(response.user);
         setIsLoggedIn(true);
+        // Simpan sesi ke localStorage agar tetap login saat di-refresh atau dibuka kembali
+        try {
+          localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(response.user));
+        } catch (storageErr) {
+          console.warn('Gagal menyimpan sesi login ke localStorage', storageErr);
+        }
       } else {
         setError(response?.message || 'Login gagal.');
       }
@@ -47,6 +98,12 @@ const App: React.FC = () => {
   };
 
   const handleLogout = () => {
+    try {
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+      localStorage.removeItem(TAB_STORAGE_KEY);
+    } catch (storageErr) {
+      console.warn('Gagal menghapus sesi login', storageErr);
+    }
     setIsLoggedIn(false);
     setUser(null);
     setActiveTab('dashboard');
@@ -54,7 +111,14 @@ const App: React.FC = () => {
 
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-6 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-6 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] relative">
+        <OfflineIndicator />
+
+        {/* PWA Install Banner at the top for easy installation before login */}
+        <div className="fixed top-4 right-4 z-40">
+          <PWAInstallButton variant="badge" />
+        </div>
+
         <div className="bg-white/95 backdrop-blur-md w-full max-w-md p-10 rounded-[2.5rem] shadow-2xl border border-white/50 relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-yellow-400 via-blue-600 to-green-500"></div>
           
@@ -69,7 +133,7 @@ const App: React.FC = () => {
                 />
               ) : (
                 <div className="w-20 h-20 bg-blue-50 rounded-3xl flex items-center justify-center border-2 border-blue-100">
-                  < Landmark size={48} className="text-blue-600" />
+                  <Landmark size={48} className="text-blue-600" />
                 </div>
               )}
             </div>
@@ -126,7 +190,12 @@ const App: React.FC = () => {
             </button>
           </form>
 
-          <div className="mt-8 pt-6 border-t border-slate-100 text-center">
+          {/* Quick PWA Info / Card */}
+          <div className="mt-6">
+            <PWAInstallButton variant="card" />
+          </div>
+
+          <div className="mt-6 pt-6 border-t border-slate-100 text-center">
              <div className="flex justify-center gap-4 text-[9px] font-bold text-slate-300 uppercase tracking-widest mb-2">
                 <span>Pemerintah Kab. Lombok Barat</span>
              </div>
@@ -138,18 +207,21 @@ const App: React.FC = () => {
   }
 
   return (
-    <Layout 
-      activeTab={activeTab} 
-      setActiveTab={setActiveTab} 
-      user={user} 
-      onLogout={handleLogout}
-    >
-      {activeTab === 'dashboard' && <Dashboard user={user!} />}
-      {activeTab === 'referensi' && <ReferensiRUPManager userRole={user!.role} />}
-      {activeTab === 'penyedia' && <ModulPBJ type={Modul.PENYEDIA} user={user!} />}
-      {activeTab === 'swakelola' && <ModulPBJ type={Modul.SWAKELOLA} user={user!} />}
-      {activeTab === 'pengaturan' && <Pengaturan currentUserRole={user!.role} />}
-    </Layout>
+    <>
+      <OfflineIndicator />
+      <Layout 
+        activeTab={activeTab} 
+        setActiveTab={handleTabChange} 
+        user={user} 
+        onLogout={handleLogout}
+      >
+        {activeTab === 'dashboard' && <Dashboard user={user!} />}
+        {activeTab === 'referensi' && <ReferensiRUPManager userRole={user!.role} />}
+        {activeTab === 'penyedia' && <ModulPBJ type={Modul.PENYEDIA} user={user!} />}
+        {activeTab === 'swakelola' && <ModulPBJ type={Modul.SWAKELOLA} user={user!} />}
+        {activeTab === 'pengaturan' && <Pengaturan currentUserRole={user!.role} />}
+      </Layout>
+    </>
   );
 };
 

@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e3a8a" />
+      <stop offset="50%" stop-color="#2563eb" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a" />
+      <stop offset="50%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+    <linearGradient id="leafGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4ade80" />
+      <stop offset="100%" stop-color="#15803d" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.3" />
+    </filter>
+  </defs>
+
+  <!-- Base background squircle -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+
+  <!-- Inner subtle circular halo -->
+  <circle cx="256" cy="256" r="190" fill="none" stroke="#ffffff" stroke-width="4" stroke-opacity="0.2" stroke-dasharray="8 8" />
+  <circle cx="256" cy="256" r="170" fill="#ffffff" fill-opacity="0.06" />
+
+  <!-- Shield Shape in center -->
+  <g filter="url(#shadow)">
+    <path d="M 256 100 
+             C 330 100 375 125 375 125 
+             C 375 240 330 330 256 385 
+             C 182 330 137 240 137 125 
+             C 137 125 182 100 256 100 Z" 
+          fill="#ffffff" />
+  </g>
+
+  <!-- Inner Shield Accent -->
+  <path d="M 256 118 
+           C 316 118 355 140 355 140 
+           C 355 235 316 312 256 362 
+           C 196 312 157 235 157 140 
+           C 157 140 196 118 256 118 Z" 
+        fill="#f8fafc" />
+
+  <!-- Agriculture Leaf & Growth Symbolism -->
+  <path d="M 256 150 C 290 190 295 245 256 280 C 217 245 222 190 256 150 Z" fill="url(#leafGrad)" />
+  <path d="M 256 175 L 256 270" stroke="#bbf7d0" stroke-width="3" stroke-linecap="round" />
+  <path d="M 256 205 Q 275 195 285 210" fill="none" stroke="#bbf7d0" stroke-width="2.5" stroke-linecap="round" />
+  <path d="M 256 230 Q 235 220 227 235" fill="none" stroke="#bbf7d0" stroke-width="2.5" stroke-linecap="round" />
+
+  <!-- Rice Ear / Padi Left -->
+  <g fill="url(#goldGrad)">
+    <ellipse cx="205" cy="180" rx="8" ry="16" transform="rotate(-30 205 180)" />
+    <ellipse cx="195" cy="210" rx="8" ry="16" transform="rotate(-25 195 210)" />
+    <ellipse cx="192" cy="240" rx="8" ry="16" transform="rotate(-15 192 240)" />
+    <ellipse cx="198" cy="270" rx="8" ry="16" transform="rotate(-5 198 270)" />
+  </g>
+
+  <!-- Rice Ear / Padi Right -->
+  <g fill="url(#goldGrad)">
+    <ellipse cx="307" cy="180" rx="8" ry="16" transform="rotate(30 307 180)" />
+    <ellipse cx="317" cy="210" rx="8" ry="16" transform="rotate(25 317 210)" />
+    <ellipse cx="320" cy="240" rx="8" ry="16" transform="rotate(15 320 240)" />
+    <ellipse cx="314" cy="270" rx="8" ry="16" transform="rotate(5 314 270)" />
+  </g>
+
+  <!-- Procurement / Document Check Badge -->
+  <circle cx="256" cy="315" r="32" fill="#2563eb" filter="url(#shadow)" />
+  <path d="M 244 315 L 252 323 L 268 307" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+
+  <!-- Ribbon Banner at Bottom -->
+  <path d="M 120 405 L 392 405 L 372 445 L 140 445 Z" fill="#1e293b" />
+  <text x="256" y="432" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="22" fill="#ffffff" text-anchor="middle" letter-spacing="3">PBJ DISTAN</text>
+
+  <!-- Subtitle -->
+  <text x="256" y="475" font-family="system-ui, -apple-system, sans-serif" font-weight="800" font-size="14" fill="#93c5fd" text-anchor="middle" letter-spacing="4">LOMBOK BARAT</text>
+</svg>

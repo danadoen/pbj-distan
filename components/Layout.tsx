@@ -4,6 +4,7 @@ import {
   LayoutDashboard, ShoppingCart, Settings, LogOut, Menu, FileText, Library, Landmark, X, User as UserIcon, ShieldCheck
 } from 'lucide-react';
 import { Role, User } from '../types';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -133,9 +134,12 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, user
             </div>
           </div>
           
-          <div className="flex items-center gap-2 px-4 py-1.5 bg-blue-600 text-white rounded-full shadow-lg shadow-blue-600/20">
-             <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
-             <span className="text-[10px] font-black uppercase tracking-widest">TA 2026</span>
+          <div className="flex items-center gap-3">
+            <PWAInstallButton variant="header" />
+            <div className="flex items-center gap-2 px-4 py-1.5 bg-blue-600 text-white rounded-full shadow-lg shadow-blue-600/20">
+               <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+               <span className="text-[10px] font-black uppercase tracking-widest">TA 2026</span>
+            </div>
           </div>
         </header>
 
