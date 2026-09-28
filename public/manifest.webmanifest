@@ -1,0 +1,31 @@
+{
+  "id": "/",
+  "name": "Realisasi PBJ Dinas Pertanian Lombok Barat",
+  "short_name": "PBJ Distan",
+  "description": "Platform pemantauan Realisasi Pengadaan Barang dan Jasa Dinas Pertanian Kab. Lombok Barat.",
+  "theme_color": "#1d4ed8",
+  "background_color": "#f8fafc",
+  "display": "standalone",
+  "start_url": "/",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

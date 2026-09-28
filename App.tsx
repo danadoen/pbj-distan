@@ -6,65 +6,38 @@ import Pengaturan from './components/Pengaturan';
 import ReferensiRUPManager from './components/ReferensiRUPManager';
 import { PWAInstallButton } from './components/PWAInstallButton';
 import { OfflineIndicator } from './components/OfflineIndicator';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Modul, Role, User } from './types';
 import { api } from './services/api';
+import { sessionManager } from './services/session';
 import { LogIn, ShieldAlert, Landmark, Loader2 } from 'lucide-react';
 
 const LOGO_URL = "https://upload.wikimedia.org/wikipedia/commons/5/54/Lambang_Kabupaten_Lombok_Barat.jpeg";
-const AUTH_STORAGE_KEY = 'pbj_distan_auth_user';
-const TAB_STORAGE_KEY = 'pbj_distan_active_tab';
 
 const App: React.FC = () => {
-  // Pulihkan session pengguna dari localStorage jika ada sehingga tidak perlu login ulang saat refresh
-  const [user, setUser] = useState<User | null>(() => {
-    try {
-      const saved = localStorage.getItem(AUTH_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed && parsed.username) {
-          const role = String(parsed.role).toLowerCase() === 'admin' ? Role.ADMIN : Role.STAFF;
-          return { ...parsed, role };
-        }
-      }
-    } catch (e) {
-      console.warn('Gagal membaca sesi login dari localStorage', e);
-    }
-    return null;
-  });
-
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem(AUTH_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return !!(parsed && parsed.username);
-      }
-    } catch {
-      // ignore
-    }
-    return false;
-  });
-
-  const [activeTab, setActiveTab] = useState<string>(() => {
-    try {
-      return localStorage.getItem(TAB_STORAGE_KEY) || 'dashboard';
-    } catch {
-      return 'dashboard';
-    }
-  });
+  // Pulihkan session pengguna dari sessionManager (localStorage + sessionStorage + cookie fallback)
+  // sehingga tidak pernah perlu login ulang saat refresh (F5) atau buka tab baru
+  const [user, setUser] = useState<User | null>(() => sessionManager.getUser());
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => !!sessionManager.getUser());
+  const [activeTab, setActiveTab] = useState<string>(() => sessionManager.getActiveTab());
 
   const [logoError, setLogoError] = useState(false);
   const [loginData, setLoginData] = useState({ username: '', password: '' });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
+  // Sync state if user exists on mount
+  useEffect(() => {
+    const existing = sessionManager.getUser();
+    if (existing) {
+      setUser(existing);
+      setIsLoggedIn(true);
+    }
+  }, []);
+
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
-    try {
-      localStorage.setItem(TAB_STORAGE_KEY, tab);
-    } catch {
-      // ignore
-    }
+    sessionManager.setActiveTab(tab);
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -81,14 +54,10 @@ const App: React.FC = () => {
       if (response && response.user) {
         setUser(response.user);
         setIsLoggedIn(true);
-        // Simpan sesi ke localStorage agar tetap login saat di-refresh atau dibuka kembali
-        try {
-          localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(response.user));
-        } catch (storageErr) {
-          console.warn('Gagal menyimpan sesi login ke localStorage', storageErr);
-        }
+        // Simpan sesi ke penyimpanan permanen
+        sessionManager.setUser(response.user);
       } else {
-        setError(response?.message || 'Login gagal.');
+        setError(response?.message || 'Login gagal. Periksa kembali username dan password.');
       }
     } catch (err: any) {
       setError(err?.message || 'Gagal menghubungkan ke backend Cloudflare Worker.');
@@ -98,18 +67,13 @@ const App: React.FC = () => {
   };
 
   const handleLogout = () => {
-    try {
-      localStorage.removeItem(AUTH_STORAGE_KEY);
-      localStorage.removeItem(TAB_STORAGE_KEY);
-    } catch (storageErr) {
-      console.warn('Gagal menghapus sesi login', storageErr);
-    }
+    sessionManager.clearUser();
     setIsLoggedIn(false);
     setUser(null);
     setActiveTab('dashboard');
   };
 
-  if (!isLoggedIn) {
+  if (!isLoggedIn || !user) {
     return (
       <div className="min-h-screen bg-slate-100 flex items-center justify-center p-6 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] relative">
         <OfflineIndicator />
@@ -154,29 +118,32 @@ const App: React.FC = () => {
                 placeholder="Username"
                 value={loginData.username}
                 onChange={(e) => setLoginData({...loginData, username: e.target.value})}
+                required
               />
             </div>
             <div className="space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Password</label>
               <input 
                 type="password" 
                 className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 transition-all text-sm font-medium"
                 placeholder="Password"
                 value={loginData.password}
                 onChange={(e) => setLoginData({...loginData, password: e.target.value})}
+                required
               />
             </div>
             
             {error && (
               <div className="p-4 bg-rose-50 text-rose-600 rounded-2xl text-[11px] font-bold flex items-center gap-2 border border-rose-100 animate-shake">
                 <ShieldAlert size={16} />
-                {error}
+                <span>{error}</span>
               </div>
             )}
 
             <button 
               type="submit" 
               disabled={isLoading}
-              className="w-full py-4 bg-blue-700 text-white rounded-2xl font-black text-sm hover:bg-blue-800 transition-all shadow-xl shadow-blue-700/20 active:scale-95 flex items-center justify-center gap-3 mt-4 disabled:opacity-70 disabled:cursor-not-allowed"
+              className="w-full py-4 bg-blue-700 text-white rounded-2xl font-black text-sm hover:bg-blue-800 transition-all shadow-xl shadow-blue-700/20 active:scale-95 flex items-center justify-center gap-3 mt-4 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
             >
               {isLoading ? (
                 <>
@@ -209,18 +176,22 @@ const App: React.FC = () => {
   return (
     <>
       <OfflineIndicator />
-      <Layout 
-        activeTab={activeTab} 
-        setActiveTab={handleTabChange} 
-        user={user} 
-        onLogout={handleLogout}
-      >
-        {activeTab === 'dashboard' && <Dashboard user={user!} />}
-        {activeTab === 'referensi' && <ReferensiRUPManager userRole={user!.role} />}
-        {activeTab === 'penyedia' && <ModulPBJ type={Modul.PENYEDIA} user={user!} />}
-        {activeTab === 'swakelola' && <ModulPBJ type={Modul.SWAKELOLA} user={user!} />}
-        {activeTab === 'pengaturan' && <Pengaturan currentUserRole={user!.role} />}
-      </Layout>
+      <ErrorBoundary onReset={() => setActiveTab('dashboard')}>
+        <Layout 
+          activeTab={activeTab} 
+          setActiveTab={handleTabChange} 
+          user={user} 
+          onLogout={handleLogout}
+        >
+          <ErrorBoundary onReset={() => setActiveTab('dashboard')}>
+            {activeTab === 'dashboard' && <Dashboard user={user} />}
+            {activeTab === 'referensi' && <ReferensiRUPManager userRole={user.role} />}
+            {activeTab === 'penyedia' && <ModulPBJ type={Modul.PENYEDIA} user={user} />}
+            {activeTab === 'swakelola' && <ModulPBJ type={Modul.SWAKELOLA} user={user} />}
+            {activeTab === 'pengaturan' && <Pengaturan currentUserRole={user.role} />}
+          </ErrorBoundary>
+        </Layout>
+      </ErrorBoundary>
     </>
   );
 };

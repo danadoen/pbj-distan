@@ -46,11 +46,14 @@ const Dashboard: React.FC<{ user: User }> = ({ user }) => {
         dbService.getBidang(),
         dbService.getReferensiRUP()
       ]);
-      setRawData(laporan);
-      setBidangList(masterBidang);
-      setRupData(referensi);
+      setRawData(Array.isArray(laporan) ? laporan : []);
+      setBidangList(Array.isArray(masterBidang) ? masterBidang : []);
+      setRupData(Array.isArray(referensi) ? referensi : []);
     } catch (err) {
       console.error("Dashboard Load Error:", err);
+      setRawData([]);
+      setBidangList([]);
+      setRupData([]);
     } finally {
       setLoading(false);
     }
@@ -58,13 +61,14 @@ const Dashboard: React.FC<{ user: User }> = ({ user }) => {
 
   // Derived Filtered Data
   const filteredData = useMemo(() => {
-    return rawData.filter(item => {
+    const list = Array.isArray(rawData) ? rawData : [];
+    return list.filter(item => {
       const matchesBidang = selectedBidang === '' || item.bidang === selectedBidang;
       
       let matchesMonth = true;
       if (selectedMonth !== 'Semua') {
         const date = item.tgl_sp2d ? new Date(item.tgl_sp2d) : null;
-        if (date) {
+        if (date && !isNaN(date.getTime())) {
           const monthIdx = date.getMonth();
           matchesMonth = MONTHS_NAME[monthIdx] === selectedMonth;
         } else {
@@ -78,26 +82,29 @@ const Dashboard: React.FC<{ user: User }> = ({ user }) => {
 
   // Statistics Calculation
   const stats = useMemo(() => {
-    // Total Pagu RUP Master filtered by Bidang keywords if needed
-    // In many cases, we check if the Satuan Kerja or Nama Paket matches the Bidang context
-    const totalPaguRUP = rupData
+    const validRup = Array.isArray(rupData) ? rupData : [];
+    const validFiltered = Array.isArray(filteredData) ? filteredData : [];
+
+    const totalPaguRUP = validRup
       .filter(r => selectedBidang === '' || (r.satuan_kerja && r.satuan_kerja.includes(selectedBidang)))
-      .reduce((acc, curr) => acc + Number(curr.pagu), 0);
+      .reduce((acc, curr) => acc + Number(curr.pagu || 0), 0);
       
-    const totalPaguTerlapor = filteredData.reduce((acc, curr) => acc + Number(curr.pagu), 0);
-    const totalRealisasi = filteredData.reduce((acc, curr) => acc + Number(curr.realisasi_keuangan), 0);
-    const avgFisik = filteredData.length > 0 ? filteredData.reduce((acc, curr) => acc + Number(curr.fisik_realisasi), 0) / filteredData.length : 0;
-    const avgRencana = filteredData.length > 0 ? filteredData.reduce((acc, curr) => acc + Number(curr.fisik_rencana), 0) / filteredData.length : 0;
+    const totalPaguTerlapor = validFiltered.reduce((acc, curr) => acc + Number(curr.pagu || 0), 0);
+    const totalRealisasi = validFiltered.reduce((acc, curr) => acc + Number(curr.realisasi_keuangan || 0), 0);
+    const avgFisik = validFiltered.length > 0 ? validFiltered.reduce((acc, curr) => acc + Number(curr.fisik_realisasi || 0), 0) / validFiltered.length : 0;
+    const avgRencana = validFiltered.length > 0 ? validFiltered.reduce((acc, curr) => acc + Number(curr.fisik_rencana || 0), 0) / validFiltered.length : 0;
     
     return { totalPaguRUP, totalPaguTerlapor, totalRealisasi, avgFisik, avgRencana };
   }, [filteredData, rupData, selectedBidang]);
 
   // Chart: Kinerja Bidang (Visualisasi Komparatif)
   const bidangPerformanceData = useMemo(() => {
-    return bidangList.map(bidang => {
-      const items = rawData.filter(d => d.bidang === bidang);
-      const pagu = items.reduce((s, i) => s + Number(i.pagu), 0);
-      const realisasi = items.reduce((s, i) => s + Number(i.realisasi_keuangan), 0);
+    const validBidangList = Array.isArray(bidangList) ? bidangList : [];
+    const validRaw = Array.isArray(rawData) ? rawData : [];
+    return validBidangList.map(bidang => {
+      const items = validRaw.filter(d => d.bidang === bidang);
+      const pagu = items.reduce((s, i) => s + Number(i.pagu || 0), 0);
+      const realisasi = items.reduce((s, i) => s + Number(i.realisasi_keuangan || 0), 0);
       return {
         name: bidang,
         Pagu: pagu,
@@ -108,28 +115,30 @@ const Dashboard: React.FC<{ user: User }> = ({ user }) => {
 
   // Chart: Komposisi Modul (Penyedia vs Swakelola)
   const modulCompositionData = useMemo(() => {
-    const penyedia = filteredData.filter(d => d.modul === Modul.PENYEDIA);
-    const swakelola = filteredData.filter(d => d.modul === Modul.SWAKELOLA);
+    const validFiltered = Array.isArray(filteredData) ? filteredData : [];
+    const penyedia = validFiltered.filter(d => d.modul === Modul.PENYEDIA);
+    const swakelola = validFiltered.filter(d => d.modul === Modul.SWAKELOLA);
     
     return [
-      { name: 'Penyedia', value: penyedia.reduce((s, i) => s + Number(i.realisasi_keuangan), 0), count: penyedia.length },
-      { name: 'Swakelola', value: swakelola.reduce((s, i) => s + Number(i.realisasi_keuangan), 0), count: swakelola.length }
+      { name: 'Penyedia', value: penyedia.reduce((s, i) => s + Number(i.realisasi_keuangan || 0), 0), count: penyedia.length },
+      { name: 'Swakelola', value: swakelola.reduce((s, i) => s + Number(i.realisasi_keuangan || 0), 0), count: swakelola.length }
     ];
   }, [filteredData]);
 
   // Chart: Tren Kumulatif
   const trendChartData = useMemo(() => {
+    const validRaw = Array.isArray(rawData) ? rawData : [];
     return MONTHS_NAME.map((month, idx) => {
-      const realizedUpToMonth = rawData.filter(item => {
+      const realizedUpToMonth = validRaw.filter(item => {
         const date = item.tgl_sp2d ? new Date(item.tgl_sp2d) : null;
         const matchesBidang = selectedBidang === '' || item.bidang === selectedBidang;
-        return matchesBidang && date && date.getMonth() <= idx;
-      }).reduce((sum, item) => sum + Number(item.realisasi_keuangan), 0);
+        return matchesBidang && date && !isNaN(date.getTime()) && date.getMonth() <= idx;
+      }).reduce((sum, item) => sum + Number(item.realisasi_keuangan || 0), 0);
 
-      const targetUpToMonth = rawData.filter(item => {
+      const targetUpToMonth = validRaw.filter(item => {
         const matchesBidang = selectedBidang === '' || item.bidang === selectedBidang;
         return matchesBidang;
-      }).reduce((sum, item) => sum + (Number(item.pagu) * ((idx + 1) / 12)), 0);
+      }).reduce((sum, item) => sum + (Number(item.pagu || 0) * ((idx + 1) / 12)), 0);
 
       return {
         bulan: month.substring(0, 3),
@@ -141,15 +150,16 @@ const Dashboard: React.FC<{ user: User }> = ({ user }) => {
 
   // Geospasial: Sebaran Wilayah (Simulasi berdasarkan teks nama paket)
   const sebaranWilayahData = useMemo(() => {
+    const validFiltered = Array.isArray(filteredData) ? filteredData : [];
     return KECAMATAN_LOBAR.map(kec => {
-      const items = filteredData.filter(d => 
-        d.nama_paket.toLowerCase().includes(kec.toLowerCase()) || 
-        d.satuan_kerja.toLowerCase().includes(kec.toLowerCase())
+      const items = validFiltered.filter(d => 
+        (d.nama_paket ? String(d.nama_paket).toLowerCase().includes(kec.toLowerCase()) : false) || 
+        (d.satuan_kerja ? String(d.satuan_kerja).toLowerCase().includes(kec.toLowerCase()) : false)
       );
       return {
         name: kec,
         count: items.length,
-        value: items.reduce((s, i) => s + Number(i.pagu), 0),
+        value: items.reduce((s, i) => s + Number(i.pagu || 0), 0),
         items: items
       };
     }).sort((a, b) => b.count - a.count);
@@ -157,12 +167,16 @@ const Dashboard: React.FC<{ user: User }> = ({ user }) => {
 
   // Deviasi Fisik (Top 10)
   const deviationChartData = useMemo(() => {
-    return filteredData
-      .map(item => ({
-        nama: item.nama_paket.substring(0, 30) + '...',
-        fullName: item.nama_paket,
-        deviasi: Number(item.fisik_rencana) - Number(item.fisik_realisasi)
-      }))
+    const validFiltered = Array.isArray(filteredData) ? filteredData : [];
+    return validFiltered
+      .map(item => {
+        const pktName = item.nama_paket || 'Tanpa Nama Paket';
+        return {
+          nama: pktName.length > 30 ? pktName.substring(0, 30) + '...' : pktName,
+          fullName: pktName,
+          deviasi: Number(item.fisik_rencana || 0) - Number(item.fisik_realisasi || 0)
+        };
+      })
       .filter(item => item.deviasi > 0)
       .sort((a, b) => b.deviasi - a.deviasi)
       .slice(0, 10);
@@ -394,16 +408,20 @@ const Dashboard: React.FC<{ user: User }> = ({ user }) => {
                   <button onClick={() => setSelectedKecamatan(null)} className="text-blue-400 hover:text-blue-600"><X size={14}/></button>
                </div>
                <div className="space-y-2 max-h-[100px] overflow-y-auto pr-1">
-                  {sebaranWilayahData.find(k => k.name === selectedKecamatan)?.items.map((it, idx) => (
-                    <div key={idx} className="flex items-center gap-2 text-[10px] font-bold text-slate-600 bg-white p-2 rounded-lg border border-blue-50 shadow-sm">
-                       <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></div>
-                       <span className="truncate flex-1">{it.nama_paket}</span>
-                       <span className="text-blue-600 shrink-0 font-mono font-black">{formatCurrency(it.realisasi_keuangan).split(',')[0]}</span>
-                    </div>
-                  ))}
-                  {sebaranWilayahData.find(k => k.name === selectedKecamatan)?.items.length === 0 && (
-                    <p className="text-[9px] text-slate-400 italic text-center py-2">Tidak ada data terdeteksi.</p>
-                  )}
+                  {(() => {
+                    const selectedKecData = sebaranWilayahData.find(k => k.name === selectedKecamatan);
+                    const items = selectedKecData?.items || [];
+                    if (items.length === 0) {
+                      return <p className="text-[9px] text-slate-400 italic text-center py-2">Tidak ada data terdeteksi.</p>;
+                    }
+                    return items.map((it, idx) => (
+                      <div key={idx} className="flex items-center gap-2 text-[10px] font-bold text-slate-600 bg-white p-2 rounded-lg border border-blue-50 shadow-sm">
+                         <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></div>
+                         <span className="truncate flex-1">{it.nama_paket || "Tanpa Nama"}</span>
+                         <span className="text-blue-600 shrink-0 font-mono font-black">{formatCurrency(it.realisasi_keuangan || 0).split(",")[0]}</span>
+                      </div>
+                    ));
+                  })()}
                </div>
             </div>
           )}

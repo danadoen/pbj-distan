@@ -62,9 +62,9 @@ const ModulPBJ: React.FC<ModulPBJProps> = ({ type, user }) => {
         dbService.getReferensiRUP(),
         dbService.getBidang()
       ]);
-      setData(laporan);
-      setReferensi(ref.filter(r => r.jenis_pengadaan === type));
-      setBidangList(bList);
+      setData(Array.isArray(laporan) ? laporan : []);
+      setReferensi(Array.isArray(ref) ? ref.filter(r => r.jenis_pengadaan === type) : []);
+      setBidangList(Array.isArray(bList) ? bList : []);
     } catch (err) {
       console.error("Error loading data:", err);
     } finally {
@@ -136,10 +136,12 @@ const ModulPBJ: React.FC<ModulPBJProps> = ({ type, user }) => {
     }
   };
 
-  const filteredData = data.filter(item => {
-    const matchesSearch = (item.nama_paket?.toLowerCase() || "").includes(searchTerm.toLowerCase()) || 
-                          (item.kode_rup?.toLowerCase() || "").includes(searchTerm.toLowerCase());
-    const matchesBidang = user.role === Role.ADMIN ? (filterBidang === '' || item.bidang === filterBidang) : true;
+  const filteredData = (Array.isArray(data) ? data : []).filter(item => {
+    const nama = (item?.nama_paket || '').toLowerCase();
+    const kode = (item?.kode_rup || '').toLowerCase();
+    const s = searchTerm.toLowerCase();
+    const matchesSearch = nama.includes(s) || kode.includes(s);
+    const matchesBidang = user.role === Role.ADMIN ? (filterBidang === '' || item?.bidang === filterBidang) : true;
     return matchesSearch && matchesBidang;
   });
 

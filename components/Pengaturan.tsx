@@ -72,11 +72,14 @@ const Pengaturan: React.FC<{ currentUserRole: Role }> = ({ currentUserRole }) =>
         dbService.getBidang(),
         dbService.getReferensiRUP()
       ]);
-      setUsers(u);
-      setBidangList(b);
-      setReferensi(r);
+      setUsers(Array.isArray(u) ? u : []);
+      setBidangList(Array.isArray(b) ? b : []);
+      setReferensi(Array.isArray(r) ? r : []);
     } catch (err) {
       console.error(err);
+      setUsers([]);
+      setBidangList([]);
+      setReferensi([]);
     }
   };
 

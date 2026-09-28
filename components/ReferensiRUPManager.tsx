@@ -86,9 +86,11 @@ const ReferensiRUPManager: React.FC<{ userRole: Role }> = ({ userRole }) => {
     }
   };
 
-  const filteredData = data.filter(item => {
-    return (item.nama_paket.toLowerCase().includes(searchTerm.toLowerCase()) || 
-            item.kode_rup.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredData = (Array.isArray(data) ? data : []).filter(item => {
+    const nama = (item?.nama_paket || '').toLowerCase();
+    const kode = (item?.kode_rup || '').toLowerCase();
+    const s = searchTerm.toLowerCase();
+    return nama.includes(s) || kode.includes(s);
   });
 
   return (

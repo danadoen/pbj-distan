@@ -20,5 +20,5 @@
     /* Type Declarations */
     "types": ["vite/client", "vite-plugin-pwa/client"]
   },
-  "include": ["src", "vite.config.ts"]
+  "include": ["src/**/*", "src/**/*.d.ts", "vite.config.ts"]
 }
