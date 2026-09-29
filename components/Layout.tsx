@@ -14,7 +14,7 @@ interface LayoutProps {
   onLogout: () => void;
 }
 
-const LOGO_URL = "https://upload.wikimedia.org/wikipedia/commons/5/54/Lambang_Kabupaten_Lombok_Barat.jpeg";
+const LOGO_URL = "/lobar.png";
 
 const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, user, onLogout }) => {
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(window.innerWidth > 1024);
