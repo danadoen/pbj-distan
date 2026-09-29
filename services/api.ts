@@ -102,7 +102,10 @@ export const api = {
     try {
       const res = await apiRequest<{ success: boolean; data: Array<{ nama_bidang: string }> | string[] }>('/api/bidang', 'GET');
       if (Array.isArray(res.data)) {
-        return res.data.map((item: any) => (typeof item === 'string' ? item : item.nama_bidang));
+        const rawList = res.data
+          .map((item: any) => String(typeof item === 'string' ? item : item?.nama_bidang || '').trim())
+          .filter(Boolean);
+        return Array.from(new Set(rawList));
       }
       return DEFAULT_BIDANG;
     } catch {
