@@ -85,7 +85,10 @@ export const api = {
     try {
       const res = await apiRequest('/api/bidang', 'GET');
       if (Array.isArray(res.data)) {
-        return res.data.map((item) => (typeof item === 'string' ? item : item.nama_bidang));
+        const rawList = res.data
+          .map((item) => String(typeof item === 'string' ? item : item?.nama_bidang || '').trim())
+          .filter(Boolean);
+        return Array.from(new Set(rawList));
       }
       return DEFAULT_BIDANG;
     } catch {
