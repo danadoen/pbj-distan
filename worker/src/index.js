@@ -126,20 +126,31 @@ export default {
         if (method === 'POST') {
           const body = await request.json();
           if (Array.isArray(body)) {
-            // Bulk insert
-            const statements = body.map(item => {
-              const nama = typeof item === 'string' ? item : item.nama_bidang;
-              return env.DB.prepare('INSERT OR IGNORE INTO master_bidang (nama_bidang) VALUES (?)').bind(nama.trim().toUpperCase());
-            });
-            await env.DB.batch(statements);
-            return jsonResponse({ success: true, message: `Berhasil menambahkan ${statements.length} bidang` }, 201);
+            const uniqueNames = Array.from(
+              new Set(
+                body
+                  .map(item => (typeof item === 'string' ? item : item.nama_bidang || '').trim().toUpperCase())
+                  .filter(Boolean)
+              )
+            );
+            const statements = [];
+            for (const nama of uniqueNames) {
+              statements.push(env.DB.prepare('DELETE FROM master_bidang WHERE UPPER(nama_bidang) = ?').bind(nama));
+              statements.push(env.DB.prepare('INSERT INTO master_bidang (nama_bidang) VALUES (?)').bind(nama));
+            }
+            if (statements.length > 0) {
+              await env.DB.batch(statements);
+            }
+            return jsonResponse({ success: true, message: `Berhasil menambahkan ${uniqueNames.length} bidang` }, 201);
           } else {
             const nama = body.nama_bidang || body.nama;
             if (!nama) {
               return jsonResponse({ success: false, message: 'Nama bidang wajib diisi' }, 400);
             }
-            await env.DB.prepare('INSERT OR IGNORE INTO master_bidang (nama_bidang, keterangan) VALUES (?, ?)')
-              .bind(nama.trim().toUpperCase(), body.keterangan || null)
+            const cleanNama = nama.trim();
+            await env.DB.prepare('DELETE FROM master_bidang WHERE nama_bidang = ?').bind(cleanNama).run();
+            await env.DB.prepare('INSERT INTO master_bidang (nama_bidang, keterangan) VALUES (?, ?)')
+              .bind(cleanNama, body.keterangan || null)
               .run();
             return jsonResponse({ success: true, message: 'Bidang berhasil ditambahkan' }, 201);
           }
@@ -174,7 +185,7 @@ export default {
         if (method === 'GET') {
           const q = url.searchParams.get('q');
           const jenis = url.searchParams.get('jenis');
-          const limit = parseInt(url.searchParams.get('limit') || '500', 10);
+          const limit = parseInt(url.searchParams.get('limit') || '1000', 10);
           const offset = parseInt(url.searchParams.get('offset') || '0', 10);
 
           let sql = 'SELECT * FROM referensi_rup WHERE 1=1';
@@ -198,51 +209,48 @@ export default {
           return jsonResponse({ success: true, data: results || [] });
         }
 
-        // POST /api/rup (Single atau Bulk import RUP)
+        // POST /api/rup (Single atau Bulk import RUP - tanpa ON CONFLICT agar kompatibel penuh dengan tabel D1)
         if (method === 'POST') {
           const body = await request.json();
           if (Array.isArray(body)) {
-            // Bulk insert/replace
-            const statements = body.map(r => 
-              env.DB.prepare(`
-                INSERT INTO referensi_rup (kode_rup, nama_paket, pagu, jenis_pengadaan, satuan_kerja, metode_pengadaan, sumber_dana)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(kode_rup) DO UPDATE SET
-                  nama_paket = excluded.nama_paket,
-                  pagu = excluded.pagu,
-                  jenis_pengadaan = excluded.jenis_pengadaan,
-                  satuan_kerja = excluded.satuan_kerja,
-                  metode_pengadaan = excluded.metode_pengadaan,
-                  sumber_dana = excluded.sumber_dana
-              `).bind(
-                r.kode_rup,
-                r.nama_paket || '',
-                Number(r.pagu) || 0,
-                r.jenis_pengadaan,
-                r.satuan_kerja || '',
-                r.metode_pengadaan || '',
-                r.sumber_dana || ''
-              )
-            );
-            await env.DB.batch(statements);
-            return jsonResponse({ success: true, message: `Berhasil mengimpor ${statements.length} data RUP` }, 201);
+            const statements = [];
+            for (const r of body) {
+              if (!r || !r.kode_rup) continue;
+              const kode = String(r.kode_rup).trim();
+              statements.push(
+                env.DB.prepare('DELETE FROM referensi_rup WHERE kode_rup = ?').bind(kode)
+              );
+              statements.push(
+                env.DB.prepare(`
+                  INSERT INTO referensi_rup (kode_rup, nama_paket, pagu, jenis_pengadaan, satuan_kerja, metode_pengadaan, sumber_dana)
+                  VALUES (?, ?, ?, ?, ?, ?, ?)
+                `).bind(
+                  kode,
+                  r.nama_paket || '',
+                  Number(r.pagu) || 0,
+                  r.jenis_pengadaan || 'Penyedia',
+                  r.satuan_kerja || '',
+                  r.metode_pengadaan || '',
+                  r.sumber_dana || ''
+                )
+              );
+            }
+            if (statements.length > 0) {
+              await env.DB.batch(statements);
+            }
+            return jsonResponse({ success: true, message: `Berhasil mengimpor ${body.length} data RUP` }, 201);
           } else {
             const { kode_rup, nama_paket, pagu, jenis_pengadaan, satuan_kerja, metode_pengadaan, sumber_dana } = body;
             if (!kode_rup || !nama_paket || !jenis_pengadaan) {
               return jsonResponse({ success: false, message: 'kode_rup, nama_paket, dan jenis_pengadaan wajib diisi' }, 400);
             }
+            const kode = String(kode_rup).trim();
+            await env.DB.prepare('DELETE FROM referensi_rup WHERE kode_rup = ?').bind(kode).run();
             await env.DB.prepare(`
               INSERT INTO referensi_rup (kode_rup, nama_paket, pagu, jenis_pengadaan, satuan_kerja, metode_pengadaan, sumber_dana)
               VALUES (?, ?, ?, ?, ?, ?, ?)
-              ON CONFLICT(kode_rup) DO UPDATE SET
-                nama_paket = excluded.nama_paket,
-                pagu = excluded.pagu,
-                jenis_pengadaan = excluded.jenis_pengadaan,
-                satuan_kerja = excluded.satuan_kerja,
-                metode_pengadaan = excluded.metode_pengadaan,
-                sumber_dana = excluded.sumber_dana
             `).bind(
-              kode_rup,
+              kode,
               nama_paket,
               Number(pagu) || 0,
               jenis_pengadaan,
@@ -299,13 +307,60 @@ export default {
           return jsonResponse({ success: true, data: results || [] });
         }
 
-        // POST /api/laporan-pbj (Tambah laporan baru)
+        // POST /api/laporan-pbj (Tambah laporan baru - single atau bulk array)
         if (method === 'POST') {
           let body;
           try {
             body = await request.json();
           } catch {
             return jsonResponse({ success: false, message: 'Invalid JSON body' }, 400);
+          }
+
+          if (Array.isArray(body)) {
+            if (body.length === 0) {
+              return jsonResponse({ success: false, message: 'Data laporan kosong' }, 400);
+            }
+            const statements = body
+              .filter(item => item && item.modul && item.bidang)
+              .map(item =>
+                env.DB.prepare(`
+                  INSERT INTO laporan_pbj (
+                    modul, bidang, kode_rup, satuan_kerja, nama_paket, metode_pengadaan,
+                    sumber_dana, pagu, hps, kontrak_nomor, kontrak_nilai, kontrak_tanggal,
+                    penyedia, realisasi_keuangan, fisik_rencana, fisik_realisasi, nomor_sp2d, tgl_sp2d
+                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `).bind(
+                  item.modul,
+                  item.bidang,
+                  item.kode_rup || '',
+                  item.satuan_kerja || '',
+                  item.nama_paket || '',
+                  item.metode_pengadaan || '',
+                  item.sumber_dana || '',
+                  Number(item.pagu) || 0,
+                  Number(item.hps) || 0,
+                  item.kontrak_nomor || '',
+                  Number(item.kontrak_nilai) || 0,
+                  item.kontrak_tanggal || null,
+                  item.penyedia || '',
+                  Number(item.realisasi_keuangan) || 0,
+                  Number(item.fisik_rencana) || 0,
+                  Number(item.fisik_realisasi) || 0,
+                  item.nomor_sp2d || '',
+                  item.tgl_sp2d || null
+                )
+              );
+
+            if (statements.length === 0) {
+              return jsonResponse({ success: false, message: 'Tidak ada data valid (modul dan bidang wajib diisi)' }, 400);
+            }
+
+            await env.DB.batch(statements);
+            return jsonResponse({
+              success: true,
+              message: `Berhasil mengimpor ${statements.length} data laporan PBJ`,
+              count: statements.length,
+            }, 201);
           }
 
           const {
