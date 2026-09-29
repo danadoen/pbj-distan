@@ -490,7 +490,7 @@ const ModulPBJ: React.FC<ModulPBJProps> = ({ type, user }) => {
           {user.role === Role.ADMIN && (
             <select className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500 shadow-sm outline-none" value={filterBidang} onChange={(e) => setFilterBidang(e.target.value)}>
               <option value="">Semua Bidang</option>
-              {bidangList.map(b => <option key={b} value={b}>{b}</option>)}
+              {bidangList.map((b, idx) => <option key={`${b}-${idx}`} value={b}>{b}</option>)}
             </select>
           )}
         </div>
@@ -684,8 +684,8 @@ const ModulPBJ: React.FC<ModulPBJProps> = ({ type, user }) => {
                         onChange={(e) => handleDefaultBidangChange(e.target.value)}
                       >
                         <option value="">-- Pilih Default Bidang --</option>
-                        {bidangList.map((b) => (
-                          <option key={b} value={b}>
+                        {bidangList.map((b, idx) => (
+                          <option key={`${b}-${idx}`} value={b}>
                             {b}
                           </option>
                         ))}
@@ -980,8 +980,8 @@ const ModulPBJ: React.FC<ModulPBJProps> = ({ type, user }) => {
                                   }`}
                                 >
                                   <option value="">-- Pilih --</option>
-                                  {bidangList.map((b) => (
-                                    <option key={b} value={b}>
+                                  {bidangList.map((b, bIdx) => (
+                                    <option key={`${b}-${bIdx}`} value={b}>
                                       {b}
                                     </option>
                                   ))}
@@ -1047,7 +1047,7 @@ const ModulPBJ: React.FC<ModulPBJProps> = ({ type, user }) => {
                               required
                             >
                               <option value="">-- PILIH BIDANG --</option>
-                              {bidangList.map(b => <option key={b} value={b}>{b}</option>)}
+                              {bidangList.map((b, idx) => <option key={`${b}-${idx}`} value={b}>{b}</option>)}
                             </select>
                           </div>
                           <div>
