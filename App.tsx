@@ -12,7 +12,7 @@ import { api } from './services/api';
 import { sessionManager } from './services/session';
 import { LogIn, ShieldAlert, Landmark, Loader2 } from 'lucide-react';
 
-const LOGO_URL = "https://upload.wikimedia.org/wikipedia/commons/5/54/Lambang_Kabupaten_Lombok_Barat.jpeg";
+const LOGO_URL = "/lobar.png";
 
 const App: React.FC = () => {
   // Pulihkan session pengguna dari sessionManager (localStorage + sessionStorage + cookie fallback)
