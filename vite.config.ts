@@ -8,7 +8,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icon.svg', 'pwa-192x192.png', 'pwa-512x512.png'],
+      includeAssets: ['lobar.png'],
       manifest: {
         id: '/',
         name: 'Realisasi PBJ Dinas Pertanian Lombok Barat',
@@ -21,19 +21,19 @@ export default defineConfig({
         scope: '/',
         icons: [
           {
-            src: '/pwa-192x192.png',
+            src: '/lobar.png',
             sizes: '192x192',
             type: 'image/png',
             purpose: 'any',
           },
           {
-            src: '/pwa-512x512.png',
+            src: '/lobar.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any',
           },
           {
-            src: '/pwa-maskable-512x512.png',
+            src: '/lobar.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable',
