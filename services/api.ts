@@ -187,6 +187,22 @@ export const api = {
     return apiRequest('/api/laporan-pbj', 'POST', payload);
   },
 
+  importLaporanPBJ: async (payload: LaporanPBJ[]): Promise<any> => {
+    if (!Array.isArray(payload) || payload.length === 0) return { success: true, count: 0 };
+    try {
+      return await apiRequest('/api/laporan-pbj', 'POST', payload);
+    } catch (err: any) {
+      // Fallback: jika worker yang dideploy belum mendukung array batch pada POST /api/laporan-pbj,
+      // kirim secara bertahap (chunk paralel) satu per satu
+      const chunkSize = 5;
+      for (let i = 0; i < payload.length; i += chunkSize) {
+        const chunk = payload.slice(i, i + chunkSize);
+        await Promise.all(chunk.map((item) => apiRequest('/api/laporan-pbj', 'POST', item)));
+      }
+      return { success: true, count: payload.length };
+    }
+  },
+
   updateLaporanPBJ: async (id: number | string, payload: Partial<LaporanPBJ>): Promise<any> => {
     return apiRequest(`/api/laporan-pbj/${id}`, 'PUT', payload);
   },
