@@ -42,6 +42,33 @@ export const dbService = {
     await api.createLaporanPBJ(dataToInsert);
   },
 
+  importLaporan: async (entries: LaporanPBJ[], syncToRUP = true): Promise<void> => {
+    const cleanedEntries = entries.map((e) => cleanLaporanData(e) as LaporanPBJ);
+    await api.importLaporanPBJ(cleanedEntries);
+
+    if (syncToRUP) {
+      const rupItems: ReferensiRUP[] = cleanedEntries
+        .filter((e) => e.kode_rup && e.nama_paket)
+        .map((e) => ({
+          kode_rup: String(e.kode_rup).trim(),
+          nama_paket: e.nama_paket,
+          pagu: Number(e.pagu) || 0,
+          jenis_pengadaan: e.modul,
+          satuan_kerja: e.satuan_kerja || 'Dinas Pertanian Lombok Barat',
+          metode_pengadaan: e.metode_pengadaan || '-',
+          sumber_dana: e.sumber_dana || 'APBD',
+        }));
+
+      if (rupItems.length > 0) {
+        try {
+          await api.importRUP(rupItems);
+        } catch (err) {
+          console.warn('Gagal sinkronisasi otomatis ke RUP:', err);
+        }
+      }
+    }
+  },
+
   updateLaporan: async (entry: LaporanPBJ): Promise<void> => {
     const cleaned = cleanLaporanData(entry);
     const { id, ...updateData } = cleaned;
