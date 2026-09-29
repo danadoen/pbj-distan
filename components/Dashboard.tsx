@@ -223,7 +223,7 @@ const Dashboard: React.FC<{ user: User }> = ({ user }) => {
                 onChange={(e) => { setSelectedBidang(e.target.value); setSelectedKecamatan(null); }}
               >
                 <option value="">Seluruh Bidang</option>
-                {bidangList.map(b => <option key={b} value={b}>{b}</option>)}
+                {bidangList.map((b, idx) => <option key={`${b}-${idx}`} value={b}>{b}</option>)}
               </select>
             </div>
           )}
