@@ -87,7 +87,7 @@ export const api = {
       if (Array.isArray(res.data)) {
         const rawList = res.data
           .map((item) => String(typeof item === 'string' ? item : item?.nama_bidang || '').trim())
-          .filter(Boolean);
+          .filter((name) => Boolean(name) && !name.startsWith('__RUP_STORE_'));
         return Array.from(new Set(rawList));
       }
       return DEFAULT_BIDANG;
