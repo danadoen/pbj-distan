@@ -421,8 +421,8 @@ const Pengaturan: React.FC<{ currentUserRole: Role }> = ({ currentUserRole }) =>
                 <div className="flex-1 overflow-y-auto">
                   <table className="w-full text-left">
                     <tbody className="divide-y divide-slate-100 text-sm">
-                      {bidangList.map(b => (
-                        <tr key={b} className="hover:bg-slate-50 group">
+                      {bidangList.map((b, idx) => (
+                        <tr key={`${b}-${idx}`} className="hover:bg-slate-50 group">
                           <td className="px-6 py-4 font-bold text-slate-700 flex items-center gap-2">
                             <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
                             {b}
@@ -498,7 +498,7 @@ const Pengaturan: React.FC<{ currentUserRole: Role }> = ({ currentUserRole }) =>
                         className="flex-1 p-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none"
                       >
                         <option value="">-- Pilih Bidang --</option>
-                        {bidangList.map((b) => <option key={b} value={b}>{b}</option>)}
+                        {bidangList.map((b, idx) => <option key={`${b}-${idx}`} value={b}>{b}</option>)}
                       </select>
                     </div>
                   )}
@@ -706,7 +706,7 @@ const Pengaturan: React.FC<{ currentUserRole: Role }> = ({ currentUserRole }) =>
                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Bidang Kerja</label>
                       <select required className="w-full p-3 bg-blue-50 border border-blue-100 rounded-xl text-sm font-bold text-blue-700 outline-none" value={userForm.bidang} onChange={(e) => setUserForm({ ...userForm, bidang: e.target.value })}>
                         <option value="">Pilih Bidang</option>
-                        {bidangList.map(b => <option key={b} value={b}>{b}</option>)}
+                        {bidangList.map((b, idx) => <option key={`${b}-${idx}`} value={b}>{b}</option>)}
                       </select>
                     </div>
                   )}
