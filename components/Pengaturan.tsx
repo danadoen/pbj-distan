@@ -23,8 +23,16 @@ import {
   Plus,
   Check
 } from 'lucide-react';
-import { User, ReferensiRUP, Role, Modul } from '../types';
+import { User, ReferensiRUP, Role, Modul, LaporanPBJ } from '../types';
 import { dbService } from '../services/dbService';
+import {
+  parseExcelTSV,
+  worksheetToGrid,
+  smartParseRUPGrid,
+  smartParseLaporanGrid,
+  downloadExcelTemplate,
+} from '../services/excelImportParser';
+import * as XLSX from 'xlsx';
 
 const Pengaturan: React.FC<{ currentUserRole: Role }> = ({ currentUserRole }) => {
   const [activeSubTab, setActiveSubTab] = useState<'users' | 'import' | 'bidang'>('users');
@@ -58,6 +66,10 @@ const Pengaturan: React.FC<{ currentUserRole: Role }> = ({ currentUserRole }) =>
 
   const [pasteContent, setPasteContent] = useState('');
   const [parsedData, setParsedData] = useState<ReferensiRUP[]>([]);
+  const [parsedLaporan, setParsedLaporan] = useState<LaporanPBJ[]>([]);
+  const [importTarget, setImportTarget] = useState<'rup' | 'realisasi'>('realisasi');
+  const [defaultBidangImport, setDefaultBidangImport] = useState<string>('');
+  const [detectedHeaderMsg, setDetectedHeaderMsg] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
 
@@ -174,51 +186,39 @@ const Pengaturan: React.FC<{ currentUserRole: Role }> = ({ currentUserRole }) =>
     }
   };
 
+  const processGridForPengaturan = (grid: string[][]) => {
+    if (importTarget === 'rup') {
+      const results = smartParseRUPGrid(grid, importModul);
+      if (results.length === 0) {
+        alert('Tidak ada baris RUP yang terdeteksi. Pastikan kolom Kode RUP dan Nama Paket tersedia.');
+      } else {
+        setParsedData(results);
+        setDetectedHeaderMsg(`Berhasil mendeteksi ${results.length} baris Referensi RUP (${importModul})`);
+      }
+    } else {
+      const res = smartParseLaporanGrid(grid, importModul, {
+        bidangList,
+        defaultBidang: defaultBidangImport,
+        referensiList: referensi,
+      });
+      if (res.items.length === 0) {
+        alert('Tidak ada baris Realisasi yang terdeteksi. Pastikan data memiliki Kode RUP atau Nama Paket.');
+      } else {
+        setParsedLaporan(res.items);
+        setDetectedHeaderMsg(res.detectedHeaderInfo);
+      }
+    }
+  };
+
   const handleProcessPaste = () => {
-    if (!pasteContent.trim()) {
+    if (!pasteContent || !pasteContent.trim()) {
       alert("Silakan tempel data dari Excel terlebih dahulu.");
       return;
     }
     setIsProcessing(true);
     try {
-      const rows = pasteContent.trim().split('\n');
-      const results: ReferensiRUP[] = [];
-      rows.forEach((row) => {
-        const cols = row.split('\t').map(c => c.trim());
-        if (!cols[0] || cols[0].toLowerCase().includes('kode')) return;
-        if (importModul === Modul.PENYEDIA) {
-          if (cols.length >= 7) {
-            const rawPagu = cols[6].replace(/[^0-9]/g, '');
-            results.push({
-              kode_rup: cols[0],
-              satuan_kerja: cols[1],
-              nama_paket: cols[2],
-              metode_pengadaan: cols[3],
-              sumber_dana: cols[5],
-              pagu: Number(rawPagu) || 0,
-              jenis_pengadaan: Modul.PENYEDIA
-            });
-          }
-        } else {
-          if (cols.length >= 6) {
-            const rawPagu = cols[5].replace(/[^0-9]/g, '');
-            results.push({
-              kode_rup: cols[0],
-              satuan_kerja: cols[1],
-              nama_paket: cols[2],
-              metode_pengadaan: cols[3],
-              sumber_dana: cols[4],
-              pagu: Number(rawPagu) || 0,
-              jenis_pengadaan: Modul.SWAKELOLA
-            });
-          }
-        }
-      });
-      if (results.length === 0) {
-        alert(`Gagal memproses. Pastikan Anda meng-copy minimal ${importModul === Modul.PENYEDIA ? '7' : '6'} kolom dari Excel.`);
-      } else {
-        setParsedData(results);
-      }
+      const grid = parseExcelTSV(pasteContent);
+      processGridForPengaturan(grid);
     } catch (err) {
       alert("Gagal memproses data.");
     } finally {
@@ -226,16 +226,65 @@ const Pengaturan: React.FC<{ currentUserRole: Role }> = ({ currentUserRole }) =>
     }
   };
 
+  const handleExcelFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsProcessing(true);
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const sheets = wb.SheetNames || [];
+        const matchingSheet =
+          sheets.find((s) => s.toLowerCase().includes(importModul.toLowerCase())) || sheets[0] || '';
+        if (matchingSheet && wb.Sheets[matchingSheet]) {
+          const grid = worksheetToGrid(wb.Sheets[matchingSheet]);
+          processGridForPengaturan(grid);
+        }
+      } catch (err) {
+        alert("Gagal membaca file Excel.");
+      } finally {
+        setIsProcessing(false);
+        e.target.value = '';
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
   const handleConfirmImport = async () => {
-    if (parsedData.length === 0) return;
-    try {
-      await dbService.importReferensiRUP(parsedData);
-      alert(`Berhasil mengimpor ${parsedData.length} data RUP.`);
-      setParsedData([]);
-      setPasteContent('');
-      await loadData();
-    } catch (err) {
-      alert("Gagal menyimpan ke database.");
+    if (importTarget === 'rup') {
+      if (parsedData.length === 0) return;
+      try {
+        await dbService.importReferensiRUP(parsedData);
+        alert(`Berhasil mengimpor ${parsedData.length} data RUP.`);
+        setParsedData([]);
+        setPasteContent('');
+        setDetectedHeaderMsg('');
+        await loadData();
+      } catch (err) {
+        alert("Gagal menyimpan ke database.");
+      }
+    } else {
+      if (parsedLaporan.length === 0) return;
+      const finalItems = parsedLaporan.map((it) => ({
+        ...it,
+        bidang: it.bidang || defaultBidangImport,
+      }));
+      if (finalItems.some((it) => !it.bidang)) {
+        alert("Ada baris yang belum memiliki Bidang. Silakan pilih Default Bidang terlebih dahulu.");
+        return;
+      }
+      try {
+        await dbService.importLaporan(finalItems, true);
+        alert(`Berhasil mengimpor ${finalItems.length} data Realisasi ${importModul}.`);
+        setParsedLaporan([]);
+        setPasteContent('');
+        setDetectedHeaderMsg('');
+        await loadData();
+      } catch (err) {
+        alert("Gagal menyimpan data realisasi ke database.");
+      }
     }
   };
 
@@ -398,54 +447,164 @@ const Pengaturan: React.FC<{ currentUserRole: Role }> = ({ currentUserRole }) =>
         ) : (
           <div className="space-y-8">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div className="space-y-6">
-                <div className="flex flex-col gap-4">
-                  <h3 className="text-lg font-bold flex items-center gap-2"><ClipboardPaste className="text-blue-600" size={20} /> Copy-Paste dari Excel</h3>
-                  <div className="flex gap-2 p-1 bg-slate-100 rounded-xl w-fit border border-slate-200">
-                    <button onClick={() => { setImportModul(Modul.PENYEDIA); setParsedData([]); }} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${importModul === Modul.PENYEDIA ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:bg-white/50'}`}><ShoppingCart size={14} /> Modul Penyedia</button>
-                    <button onClick={() => { setImportModul(Modul.SWAKELOLA); setParsedData([]); }} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${importModul === Modul.SWAKELOLA ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:bg-white/50'}`}><FileText size={14} /> Modul Swakelola</button>
-                  </div>
-                </div>
-                <textarea className="w-full h-64 p-4 bg-slate-50 border-2 border-slate-200 rounded-2xl text-[11px] font-mono focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all placeholder:text-slate-300" placeholder={`Tempel data ${importModul} di sini...`} value={pasteContent} onChange={(e) => setPasteContent(e.target.value)} />
+              <div className="space-y-5">
                 <div className="flex flex-col gap-3">
-                  <div className="flex items-start gap-2 text-[10px] text-slate-500 font-medium bg-blue-50 p-3 rounded-xl border border-blue-100">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="text-lg font-bold flex items-center gap-2"><ClipboardPaste className="text-blue-600" size={20} /> Smart Import Excel & Copy-Paste</h3>
+                    <button
+                      type="button"
+                      onClick={() => downloadExcelTemplate(importModul, defaultBidangImport)}
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-bold transition-all"
+                    >
+                      Unduh Template {importModul}
+                    </button>
+                  </div>
+
+                  {/* Pilih Target Import: Realisasi Modul vs Referensi RUP */}
+                  <div className="flex flex-wrap gap-2">
+                    <div className="flex gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200">
+                      <button
+                        onClick={() => { setImportTarget('realisasi'); setParsedData([]); setParsedLaporan([]); setDetectedHeaderMsg(''); }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${importTarget === 'realisasi' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white/50'}`}
+                      >
+                        Data Realisasi Modul
+                      </button>
+                      <button
+                        onClick={() => { setImportTarget('rup'); setParsedData([]); setParsedLaporan([]); setDetectedHeaderMsg(''); }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${importTarget === 'rup' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white/50'}`}
+                      >
+                        Master Referensi RUP
+                      </button>
+                    </div>
+
+                    <div className="flex gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200">
+                      <button onClick={() => { setImportModul(Modul.PENYEDIA); setParsedData([]); setParsedLaporan([]); setDetectedHeaderMsg(''); }} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${importModul === Modul.PENYEDIA ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:bg-white/50'}`}><ShoppingCart size={13} /> Penyedia</button>
+                      <button onClick={() => { setImportModul(Modul.SWAKELOLA); setParsedData([]); setParsedLaporan([]); setDetectedHeaderMsg(''); }} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${importModul === Modul.SWAKELOLA ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:bg-white/50'}`}><FileText size={13} /> Swakelola</button>
+                    </div>
+                  </div>
+
+                  {importTarget === 'realisasi' && (
+                    <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                      <span className="text-[11px] font-bold text-slate-600 shrink-0">Default Bidang (Jika Kosong):</span>
+                      <select
+                        value={defaultBidangImport}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setDefaultBidangImport(val);
+                          if (val && parsedLaporan.length > 0) {
+                            setParsedLaporan((prev) => prev.map((it) => ({ ...it, bidang: it.bidang || val })));
+                          }
+                        }}
+                        className="flex-1 p-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none"
+                      >
+                        <option value="">-- Pilih Bidang --</option>
+                        {bidangList.map((b) => <option key={b} value={b}>{b}</option>)}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                {/* Upload File Excel Option */}
+                <div className="flex items-center justify-between bg-emerald-50/70 border border-emerald-200 p-3.5 rounded-2xl">
+                  <div className="text-xs">
+                    <p className="font-bold text-emerald-900">Import Langsung File Excel (.xlsx / .xls / .csv)</p>
+                    <p className="text-[10px] text-emerald-700">Pintar mencari baris header bertingkat secara otomatis</p>
+                  </div>
+                  <label className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold cursor-pointer transition-all shadow-sm flex items-center gap-1.5 shrink-0">
+                    <Upload size={14} /> Pilih File Excel
+                    <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleExcelFileUpload} />
+                  </label>
+                </div>
+
+                <textarea className="w-full h-56 p-4 bg-slate-50 border-2 border-slate-200 rounded-2xl text-[11px] font-mono focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all placeholder:text-slate-400" placeholder={`Atau tempel (Ctrl+V) data Excel ${importModul} di sini (beserta header maupun tanpa header)...`} value={pasteContent} onChange={(e) => setPasteContent(e.target.value)} />
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-start gap-2 text-[10px] text-slate-600 font-medium bg-blue-50 p-3 rounded-xl border border-blue-100">
                     <Info className="text-blue-600 shrink-0 mt-0.5" size={14} />
-                    <div>
-                      <p className="font-bold text-blue-800 mb-1">Urutan Kolom Harus Sesuai Gambar:</p>
-                      {importModul === Modul.PENYEDIA ? <p>Kode RUP → Satuan Kerja → Nama Paket → Metode → Jenis Pengadaan → Sumber Dana → Nilai Pagu</p> : <p>Kode RUP → Satuan Kerja → Nama Paket → Metode → Sumber Dana → Nilai Pagu</p>}
+                    <div className="space-y-1">
+                      <p className="font-bold text-blue-800">Header {importModul} yang Dikenali Otomatis:</p>
+                      {importTarget === 'realisasi' ? (
+                        <p className="font-mono text-[9.5px] leading-relaxed">
+                          Kode RUP → Satuan Kerja → Nama Paket → Metode Pengadaan → Jenis Pengadaan → Sumber Dana → Nilai Pagu (Rp) → HPS (Rp) → DATA KONTRAK AWAL DAN ADDENDUM [NOMOR, NILAI (Rp,), TANGGAL/MASA PELAKSANAAN, PENYEDIA (PT, CV, UD, dll)] → KEUANGAN [REALISASI (Rp.), %] → FISIK [RENCANA (%), REALISASI (%), DEVIASI (%)] → SP2D [NOMOR, TGL] → SISA ANGGARAN (Rp) → {importModul === Modul.SWAKELOLA ? 'BIDANG' : 'Bidang'}
+                        </p>
+                      ) : (
+                        <p>Kode RUP → Satuan Kerja → Nama Paket → Metode Pengadaan → Jenis Pengadaan → Sumber Dana → Nilai Pagu (Rp)</p>
+                      )}
                     </div>
                   </div>
                   <div className="flex justify-end">
-                    <button onClick={handleProcessPaste} disabled={isProcessing} className="px-8 py-3 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-blue-600 transition-all flex items-center gap-2 shadow-lg active:scale-95 disabled:opacity-50">{isProcessing ? <Loader2 size={16} className="animate-spin" /> : 'Proses Data'}</button>
+                    <button onClick={handleProcessPaste} disabled={isProcessing} className="px-8 py-3 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-blue-600 transition-all flex items-center gap-2 shadow-lg active:scale-95 disabled:opacity-50">{isProcessing ? <Loader2 size={16} className="animate-spin" /> : 'Deteksi Header & Proses Data'}</button>
                   </div>
                 </div>
-                <div className="pt-8 border-t border-slate-100">
-                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-widest mb-4">Database Management</h4>
+                <div className="pt-6 border-t border-slate-100">
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-widest mb-3">Database Management</h4>
                   <button onClick={clearRUPDatabase} disabled={isClearing} className="flex items-center gap-2 px-4 py-2.5 text-red-500 hover:bg-red-50 rounded-xl text-xs font-bold transition-all border border-red-100 disabled:opacity-50">{isClearing ? <Loader2 size={14} className="animate-spin" /> : <Trash size={14} />} Kosongkan Seluruh Referensi RUP</button>
                 </div>
               </div>
-              <div className="space-y-6 bg-slate-50 rounded-3xl p-6 border border-slate-200 min-h-[400px] flex flex-col">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-bold flex items-center gap-2 text-slate-700"><Table size={18} /> Pratinjau {importModul} ({parsedData.length} baris)</h3>
-                  {parsedData.length > 0 && <button onClick={handleConfirmImport} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition-all shadow-md flex items-center gap-2"><Save size={14} /> Simpan ke Database</button>}
+              <div className="space-y-4 bg-slate-50 rounded-3xl p-6 border border-slate-200 min-h-[400px] flex flex-col">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold flex items-center gap-2 text-slate-700">
+                      <Table size={18} /> Pratinjau {importTarget === 'realisasi' ? `Realisasi ${importModul} (${parsedLaporan.length} baris)` : `RUP ${importModul} (${parsedData.length} baris)`}
+                    </h3>
+                    {detectedHeaderMsg && <p className="text-[10px] font-bold text-emerald-600 mt-0.5">{detectedHeaderMsg}</p>}
+                  </div>
+                  {(importTarget === 'rup' ? parsedData.length > 0 : parsedLaporan.length > 0) && (
+                    <button onClick={handleConfirmImport} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition-all shadow-md flex items-center gap-2">
+                      <Save size={14} /> Simpan ke Database
+                    </button>
+                  )}
                 </div>
-                <div className="flex-1 overflow-auto rounded-xl border border-slate-200 bg-white shadow-inner">
-                  {parsedData.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-slate-400 p-8 text-center">
+                <div className="flex-1 overflow-auto rounded-xl border border-slate-200 bg-white shadow-inner max-h-[480px]">
+                  {importTarget === 'rup' ? (
+                    parsedData.length === 0 ? (
+                      <div className="h-full min-h-[300px] flex flex-col items-center justify-center text-slate-400 p-8 text-center">
+                        <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4"><ClipboardPaste size={32} /></div>
+                        <p className="text-xs font-bold uppercase tracking-widest mb-2">Siap Menerima Data RUP</p>
+                      </div>
+                    ) : (
+                      <table className="w-full text-left text-[9px] border-collapse">
+                        <thead className="sticky top-0 bg-slate-100 border-b border-slate-200 z-10">
+                          <tr><th className="px-3 py-3 font-bold uppercase text-slate-500">Kode RUP</th><th className="px-3 py-3 font-bold uppercase text-slate-500">Nama Paket</th><th className="px-3 py-3 font-bold uppercase text-slate-500 text-right">Nilai Pagu</th></tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {parsedData.map((item, idx) => (
+                            <tr key={idx} className="hover:bg-blue-50/50 transition-colors">
+                              <td className="px-3 py-2.5 font-mono text-blue-600 font-bold">{item.kode_rup}</td>
+                              <td className="px-3 py-2.5 font-semibold text-slate-700 truncate max-w-[180px]">{item.nama_paket}</td>
+                              <td className="px-3 py-2.5 text-right font-mono font-bold text-slate-900">Rp {item.pagu.toLocaleString('id-ID')}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )
+                  ) : parsedLaporan.length === 0 ? (
+                    <div className="h-full min-h-[300px] flex flex-col items-center justify-center text-slate-400 p-8 text-center">
                       <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4"><ClipboardPaste size={32} /></div>
-                      <p className="text-xs font-bold uppercase tracking-widest mb-2">Ready for paste</p>
+                      <p className="text-xs font-bold uppercase tracking-widest mb-2">Siap Menerima Data Realisasi {importModul}</p>
                     </div>
                   ) : (
-                    <table className="w-full text-left text-[9px] border-collapse">
+                    <table className="w-full text-left text-[9px] border-collapse min-w-[750px]">
                       <thead className="sticky top-0 bg-slate-100 border-b border-slate-200 z-10">
-                        <tr><th className="px-3 py-3 font-bold uppercase text-slate-500">Kode RUP</th><th className="px-3 py-3 font-bold uppercase text-slate-500">Nama Paket</th><th className="px-3 py-3 font-bold uppercase text-slate-500 text-right">Nilai Pagu</th></tr>
+                        <tr>
+                          <th className="px-2.5 py-3 font-bold uppercase text-slate-500">Kode RUP</th>
+                          <th className="px-2.5 py-3 font-bold uppercase text-slate-500">Nama Paket</th>
+                          <th className="px-2.5 py-3 font-bold uppercase text-slate-500 text-right">Pagu</th>
+                          <th className="px-2.5 py-3 font-bold uppercase text-slate-500 text-right">Nilai Kontrak</th>
+                          <th className="px-2.5 py-3 font-bold uppercase text-slate-500 text-right">Realisasi Keu</th>
+                          <th className="px-2.5 py-3 font-bold uppercase text-slate-500 text-center">Fisik</th>
+                          <th className="px-2.5 py-3 font-bold uppercase text-slate-500">Bidang</th>
+                        </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {parsedData.map((item, idx) => (
+                        {parsedLaporan.map((item, idx) => (
                           <tr key={idx} className="hover:bg-blue-50/50 transition-colors">
-                            <td className="px-3 py-2.5 font-mono text-blue-600 font-bold">{item.kode_rup}</td>
-                            <td className="px-3 py-2.5 font-semibold text-slate-700 truncate max-w-[150px]">{item.nama_paket}</td>
-                            <td className="px-3 py-2.5 text-right font-mono font-bold text-slate-900">Rp {item.pagu.toLocaleString('id-ID')}</td>
+                            <td className="px-2.5 py-2.5 font-mono text-blue-600 font-bold">{item.kode_rup || '-'}</td>
+                            <td className="px-2.5 py-2.5 font-semibold text-slate-700 truncate max-w-[160px]">{item.nama_paket}</td>
+                            <td className="px-2.5 py-2.5 text-right font-mono font-bold text-slate-900">{item.pagu.toLocaleString('id-ID')}</td>
+                            <td className="px-2.5 py-2.5 text-right font-mono text-blue-700">{item.kontrak_nilai.toLocaleString('id-ID')}</td>
+                            <td className="px-2.5 py-2.5 text-right font-mono font-bold text-emerald-600">{item.realisasi_keuangan.toLocaleString('id-ID')}</td>
+                            <td className="px-2.5 py-2.5 text-center font-mono">{item.fisik_realisasi}%</td>
+                            <td className="px-2.5 py-2.5 font-bold text-slate-700">{item.bidang || defaultBidangImport || '-'}</td>
                           </tr>
                         ))}
                       </tbody>
