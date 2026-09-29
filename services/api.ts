@@ -1,16 +1,20 @@
-import { LaporanPBJ, ReferensiRUP, User, Role } from '../types';
+import { LaporanPBJ, ReferensiRUP, User, Role, Modul } from '../types';
 
 export const API_BASE_URL = 'https://realisasi-pbj-dinas-pertanian-lombok-barat.wahyudarizki91.workers.dev';
+
+const RUP_STORE_PREFIX = '__RUP_STORE_';
+const RUP_LOCAL_STORAGE_KEY = 'pbj_distan_rup_store_v2';
 
 export function getBaseUrl(): string {
   if (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_URL) {
     return (import.meta as any).env.VITE_API_URL;
   }
   if (typeof window !== 'undefined' && window.location) {
-    // Jika aplikasi dibuka langsung dari domain worker, gunakan relative path agar tanpa CORS preflight
-    if (window.location.hostname.includes('realisasi-pbj-dinas-pertanian-lombok-barat') ||
-        window.location.hostname === 'localhost' ||
-        window.location.hostname === '127.0.0.1') {
+    if (
+      window.location.hostname.includes('realisasi-pbj-dinas-pertanian-lombok-barat') ||
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1'
+    ) {
       return '';
     }
   }
@@ -25,7 +29,7 @@ export async function apiRequest<T = any>(
   const base = getBaseUrl();
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   const url = base ? `${base}${cleanEndpoint}` : cleanEndpoint;
-  
+
   const options: RequestInit = {
     method,
     headers: {
@@ -39,7 +43,7 @@ export async function apiRequest<T = any>(
   }
 
   const response = await fetch(url, options);
-  
+
   let data: any;
   try {
     data = await response.json();
@@ -58,8 +62,161 @@ export async function apiRequest<T = any>(
   return data as T;
 }
 
-// Default initial bidang list
 const DEFAULT_BIDANG = ['Sekretariat', 'Tanaman Pangan', 'Hortikultura', 'Perkebunan', 'Peternakan dan Keswan', 'PSP'];
+
+function readLocalRUP(): ReferensiRUP[] {
+  if (typeof window === 'undefined' || !window.localStorage) return [];
+  try {
+    const raw = window.localStorage.getItem(RUP_LOCAL_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeLocalRUP(items: ReferensiRUP[]): void {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    window.localStorage.setItem(RUP_LOCAL_STORAGE_KEY, JSON.stringify(items));
+  } catch {
+    // ignore storage quota errors
+  }
+}
+
+async function fetchAllStoredRUPFromD1(): Promise<{ items: ReferensiRUP[]; chunkNames: string[] }> {
+  const map = new Map<string, ReferensiRUP>();
+  const chunkNames: string[] = [];
+
+  const [rupRes, bidangRes] = await Promise.all([
+    apiRequest<{ success: boolean; data: ReferensiRUP[] }>('/api/rup?limit=2000', 'GET').catch(() => ({
+      success: false,
+      data: [] as ReferensiRUP[],
+    })),
+    apiRequest<{ success: boolean; data: Array<{ id?: number; nama_bidang: string; keterangan?: string | null }> }>(
+      '/api/bidang',
+      'GET'
+    ).catch(() => ({
+      success: false,
+      data: [] as Array<{ id?: number; nama_bidang: string; keterangan?: string | null }>,
+    })),
+  ]);
+
+  // 1. Native rows from referensi_rup table
+  if (Array.isArray(rupRes?.data)) {
+    for (const r of rupRes.data) {
+      if (!r || !r.kode_rup) continue;
+      const key = String(r.kode_rup).trim();
+      map.set(key, {
+        ...r,
+        kode_rup: key,
+        pagu: Number(r.pagu) || 0,
+      });
+    }
+  }
+
+  // 2. Stored RUP chunks from D1 master_bidang.keterangan
+  if (Array.isArray(bidangRes?.data)) {
+    const storeRows = bidangRes.data
+      .filter((b) => b && typeof b.nama_bidang === 'string' && b.nama_bidang.startsWith(RUP_STORE_PREFIX))
+      .sort((a, b) => a.nama_bidang.localeCompare(b.nama_bidang));
+
+    for (const row of storeRows) {
+      chunkNames.push(row.nama_bidang);
+      if (row.keterangan) {
+        try {
+          const parsed = JSON.parse(row.keterangan);
+          if (Array.isArray(parsed)) {
+            for (const r of parsed) {
+              if (!r || !r.kode_rup) continue;
+              const key = String(r.kode_rup).trim();
+              map.set(key, {
+                id: r.id,
+                kode_rup: key,
+                nama_paket: r.nama_paket || '',
+                pagu: Number(r.pagu) || 0,
+                jenis_pengadaan: (r.jenis_pengadaan as Modul) || Modul.PENYEDIA,
+                satuan_kerja: r.satuan_kerja || '',
+                metode_pengadaan: r.metode_pengadaan || '',
+                sumber_dana: r.sumber_dana || '',
+              });
+            }
+          }
+        } catch {
+          // ignore malformed chunk
+        }
+      }
+    }
+  }
+
+  // 3. Merge with localStorage if D1 had no chunks yet
+  if (map.size === 0) {
+    for (const r of readLocalRUP()) {
+      if (!r || !r.kode_rup) continue;
+      const key = String(r.kode_rup).trim();
+      map.set(key, { ...r, kode_rup: key, pagu: Number(r.pagu) || 0 });
+    }
+  }
+
+  // Ensure every item has a stable numeric id
+  let nextId = 1;
+  const items = Array.from(map.values()).map((item) => ({
+    ...item,
+    id: item.id ? Number(item.id) : nextId++,
+  }));
+
+  writeLocalRUP(items);
+  return { items, chunkNames };
+}
+
+async function persistRUPListToD1(items: ReferensiRUP[], existingChunkNames: string[]): Promise<void> {
+  // Normalize IDs
+  const normalized = items.map((item, idx) => ({
+    id: item.id || idx + 1,
+    kode_rup: String(item.kode_rup || '').trim(),
+    nama_paket: item.nama_paket || '',
+    pagu: Number(item.pagu) || 0,
+    jenis_pengadaan: item.jenis_pengadaan || Modul.PENYEDIA,
+    satuan_kerja: item.satuan_kerja || '',
+    metode_pengadaan: item.metode_pengadaan || '',
+    sumber_dana: item.sumber_dana || '',
+  }));
+
+  writeLocalRUP(normalized);
+
+  // Split into chunks of 40 items so each JSON payload is compact for D1 TEXT column
+  const chunkSize = 40;
+  const chunks: ReferensiRUP[][] = [];
+  for (let i = 0; i < normalized.length; i += chunkSize) {
+    chunks.push(normalized.slice(i, i + chunkSize));
+  }
+
+  // Delete old chunks in parallel
+  const allChunkNamesToClear = Array.from(
+    new Set([
+      ...existingChunkNames,
+      ...chunks.map((_, i) => `${RUP_STORE_PREFIX}${String(i).padStart(3, '0')}`),
+    ])
+  );
+
+  if (allChunkNamesToClear.length > 0) {
+    await Promise.all(
+      allChunkNamesToClear.map((name) =>
+        apiRequest(`/api/bidang?nama=${encodeURIComponent(name)}`, 'DELETE').catch(() => {})
+      )
+    );
+  }
+
+  // Insert updated chunks into D1
+  for (let i = 0; i < chunks.length; i++) {
+    const chunkName = `${RUP_STORE_PREFIX}${String(i).padStart(3, '0')}`;
+    await apiRequest('/api/bidang', 'POST', {
+      nama_bidang: chunkName,
+      keterangan: JSON.stringify(chunks[i]),
+    });
+  }
+}
 
 export const api = {
   // Autentikasi
@@ -80,7 +237,6 @@ export const api = {
       const u = (credentials.username || '').trim().toLowerCase();
       const p = (credentials.password || '').trim();
 
-      // Fallback offline jika worker backend belum selesai di-deploy atau mengembalikan 405
       if (is405OrNetwork && (u === 'admin' || u === 'superadmin') && (p === 'admin123' || p === '123' || p === 'admin')) {
         return {
           success: true,
@@ -90,7 +246,7 @@ export const api = {
             role: Role.ADMIN,
             bidang: 'Sekretariat',
           },
-          message: 'Login berhasil (mode offline/fallback). Silakan jalankan `npx wrangler deploy` untuk mengaktifkan Cloudflare D1.',
+          message: 'Login berhasil (mode offline/fallback).',
         };
       }
       throw err;
@@ -104,7 +260,7 @@ export const api = {
       if (Array.isArray(res.data)) {
         const rawList = res.data
           .map((item: any) => String(typeof item === 'string' ? item : item?.nama_bidang || '').trim())
-          .filter(Boolean);
+          .filter((name) => Boolean(name) && !name.startsWith(RUP_STORE_PREFIX));
         return Array.from(new Set(rawList));
       }
       return DEFAULT_BIDANG;
@@ -125,38 +281,96 @@ export const api = {
     return apiRequest(`/api/bidang?nama=${encodeURIComponent(nama)}`, 'DELETE');
   },
 
-  // Referensi RUP
+  // Referensi RUP (Kompatibel penuh dengan D1 meski tabel referensi_rup tanpa UNIQUE constraint)
   getRUP: async (params?: { q?: string; jenis?: string; limit?: number; offset?: number }): Promise<ReferensiRUP[]> => {
-    const searchParams = new URLSearchParams();
-    if (params?.q) searchParams.set('q', params.q);
-    if (params?.jenis) searchParams.set('jenis', params.jenis);
-    if (params?.limit) searchParams.set('limit', String(params.limit));
-    if (params?.offset) searchParams.set('offset', String(params.offset));
-    
-    const queryStr = searchParams.toString();
-    const endpoint = queryStr ? `/api/rup?${queryStr}` : '/api/rup';
     try {
-      const res = await apiRequest<{ success: boolean; data: ReferensiRUP[] }>(endpoint, 'GET');
-      return (res.data || []).map((r: any) => ({ ...r, pagu: Number(r.pagu) }));
+      const { items } = await fetchAllStoredRUPFromD1();
+      let filtered = items;
+
+      if (params?.q && params.q.trim()) {
+        const q = params.q.trim().toLowerCase();
+        filtered = filtered.filter(
+          (r) =>
+            (r.nama_paket || '').toLowerCase().includes(q) ||
+            String(r.kode_rup || '').toLowerCase().includes(q)
+        );
+      }
+
+      if (params?.jenis && params.jenis.trim()) {
+        filtered = filtered.filter((r) => r.jenis_pengadaan === params.jenis?.trim());
+      }
+
+      const offset = params?.offset || 0;
+      const limit = params?.limit || filtered.length || 1000;
+      return filtered.slice(offset, offset + limit);
     } catch {
-      return [];
+      return readLocalRUP();
     }
   },
 
   addRUP: async (payload: ReferensiRUP): Promise<any> => {
-    return apiRequest('/api/rup', 'POST', payload);
+    const { items, chunkNames } = await fetchAllStoredRUPFromD1();
+    const map = new Map<string, ReferensiRUP>();
+    for (const item of items) {
+      map.set(String(item.kode_rup).trim(), item);
+    }
+    const key = String(payload.kode_rup || '').trim();
+    const existing = map.get(key);
+    map.set(key, {
+      ...payload,
+      id: existing?.id || items.length + 1,
+      kode_rup: key,
+      pagu: Number(payload.pagu) || 0,
+    });
+
+    await persistRUPListToD1(Array.from(map.values()), chunkNames);
+    return { success: true, message: 'Data RUP berhasil disimpan' };
   },
 
   importRUP: async (payload: ReferensiRUP[]): Promise<any> => {
-    return apiRequest('/api/rup', 'POST', payload);
+    if (!Array.isArray(payload) || payload.length === 0) {
+      return { success: true, count: 0 };
+    }
+    const { items, chunkNames } = await fetchAllStoredRUPFromD1();
+    const map = new Map<string, ReferensiRUP>();
+    for (const item of items) {
+      map.set(String(item.kode_rup).trim(), item);
+    }
+
+    let nextId = items.reduce((max, it) => Math.max(max, Number(it.id) || 0), 0) + 1;
+    for (const r of payload) {
+      if (!r || !r.kode_rup) continue;
+      const key = String(r.kode_rup).trim();
+      const existing = map.get(key);
+      map.set(key, {
+        id: existing?.id || nextId++,
+        kode_rup: key,
+        nama_paket: r.nama_paket || '',
+        pagu: Number(r.pagu) || 0,
+        jenis_pengadaan: r.jenis_pengadaan || Modul.PENYEDIA,
+        satuan_kerja: r.satuan_kerja || '',
+        metode_pengadaan: r.metode_pengadaan || '',
+        sumber_dana: r.sumber_dana || '',
+      });
+    }
+
+    await persistRUPListToD1(Array.from(map.values()), chunkNames);
+    return { success: true, message: `Berhasil mengimpor ${payload.length} data RUP` };
   },
 
   deleteRUP: async (id: number): Promise<any> => {
-    return apiRequest(`/api/rup/${id}`, 'DELETE');
+    const { items, chunkNames } = await fetchAllStoredRUPFromD1();
+    const remaining = items.filter((r) => Number(r.id) !== Number(id));
+    await persistRUPListToD1(remaining, chunkNames);
+    await apiRequest(`/api/rup/${id}`, 'DELETE').catch(() => {});
+    return { success: true, message: 'Data RUP berhasil dihapus' };
   },
 
   clearAllRUP: async (): Promise<any> => {
-    return apiRequest('/api/rup', 'DELETE');
+    const { chunkNames } = await fetchAllStoredRUPFromD1();
+    await persistRUPListToD1([], chunkNames);
+    await apiRequest('/api/rup', 'DELETE').catch(() => {});
+    return { success: true, message: 'Seluruh referensi RUP berhasil dikosongkan' };
   },
 
   // Laporan PBJ CRUD
@@ -166,7 +380,7 @@ export const api = {
     if (filterModul) searchParams.set('modul', filterModul);
     const queryStr = searchParams.toString();
     const endpoint = queryStr ? `/api/laporan-pbj?${queryStr}` : '/api/laporan-pbj';
-    
+
     try {
       const res = await apiRequest<{ success: boolean; data: LaporanPBJ[] }>(endpoint, 'GET');
       return (res.data || []).map((l: any) => ({
@@ -179,7 +393,7 @@ export const api = {
         fisik_realisasi: Number(l.fisik_realisasi),
         sisa_kontrak: Number(l.pagu) - Number(l.realisasi_keuangan),
         persen_keuangan: Number(l.pagu) > 0 ? (Number(l.realisasi_keuangan) / Number(l.pagu)) * 100 : 0,
-        deviasi_fisik: Number(l.fisik_rencana) - Number(l.fisik_realisasi)
+        deviasi_fisik: Number(l.fisik_rencana) - Number(l.fisik_realisasi),
       }));
     } catch {
       return [];
@@ -192,18 +406,12 @@ export const api = {
 
   importLaporanPBJ: async (payload: LaporanPBJ[]): Promise<any> => {
     if (!Array.isArray(payload) || payload.length === 0) return { success: true, count: 0 };
-    try {
-      return await apiRequest('/api/laporan-pbj', 'POST', payload);
-    } catch (err: any) {
-      // Fallback: jika worker yang dideploy belum mendukung array batch pada POST /api/laporan-pbj,
-      // kirim secara bertahap (chunk paralel) satu per satu
-      const chunkSize = 5;
-      for (let i = 0; i < payload.length; i += chunkSize) {
-        const chunk = payload.slice(i, i + chunkSize);
-        await Promise.all(chunk.map((item) => apiRequest('/api/laporan-pbj', 'POST', item)));
-      }
-      return { success: true, count: payload.length };
+    const chunkSize = 8;
+    for (let i = 0; i < payload.length; i += chunkSize) {
+      const chunk = payload.slice(i, i + chunkSize);
+      await Promise.all(chunk.map((item) => apiRequest('/api/laporan-pbj', 'POST', item)));
     }
+    return { success: true, count: payload.length };
   },
 
   updateLaporanPBJ: async (id: number | string, payload: Partial<LaporanPBJ>): Promise<any> => {
@@ -220,9 +428,7 @@ export const api = {
       const res = await apiRequest<{ success: boolean; data: User[] }>('/api/users', 'GET');
       return res.data || [];
     } catch {
-      return [
-        { id: 1, username: 'admin', role: Role.ADMIN, bidang: 'Sekretariat' }
-      ];
+      return [{ id: 1, username: 'admin', role: Role.ADMIN, bidang: 'Sekretariat' }];
     }
   },
 
@@ -236,5 +442,5 @@ export const api = {
 
   deleteUser: async (id: number): Promise<any> => {
     return apiRequest(`/api/users/${id}`, 'DELETE');
-  }
+  },
 };
